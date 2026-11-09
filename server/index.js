@@ -15,6 +15,7 @@ const { startEnergyOptimizationSimulationLoop } = require('./services/energyOpti
 const { startQualityPredictionSimulationLoop } = require('./services/qualityPredictionSimulation');
 const { startWorkerSafetySimulationLoop } = require('./services/workerSafetySimulation');
 const { startEmissionsSimulationLoop } = require('./services/emissionsSimulation');
+const { startRetentionLoop } = require('./services/retention');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -73,6 +74,7 @@ async function start() {
   startQualityPredictionSimulationLoop();
   startWorkerSafetySimulationLoop();
   startEmissionsSimulationLoop();
+  startRetentionLoop();
 
   app.listen(PORT, () => {
     console.log(`CemPulse API listening on http://localhost:${PORT}`);

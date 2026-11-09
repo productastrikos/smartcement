@@ -318,6 +318,20 @@ async function getBatchCountSince(sinceIso) {
   return Number(rows[0].count);
 }
 
+// ---------------------------------------------------------------------
+// Retention
+// ---------------------------------------------------------------------
+
+async function deleteReadingsOlderThan(beforeIso) {
+  const { rowCount } = await pool.query(`DELETE FROM readings WHERE ts < $1`, [beforeIso]);
+  return rowCount;
+}
+
+async function deletePlantMetricsOlderThan(beforeIso) {
+  const { rowCount } = await pool.query(`DELETE FROM plant_metrics WHERE ts < $1`, [beforeIso]);
+  return rowCount;
+}
+
 module.exports = {
   pool,
   insertReading,
@@ -349,4 +363,6 @@ module.exports = {
   getQualityBatchCount,
   getOffSpecBatchCountSince,
   getBatchCountSince,
+  deleteReadingsOlderThan,
+  deletePlantMetricsOlderThan,
 };
