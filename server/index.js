@@ -16,6 +16,7 @@ const { startQualityPredictionSimulationLoop } = require('./services/qualityPred
 const { startWorkerSafetySimulationLoop } = require('./services/workerSafetySimulation');
 const { startEmissionsSimulationLoop } = require('./services/emissionsSimulation');
 const { startRetentionLoop } = require('./services/retention');
+const { ensureBagFilterRepairHistory } = require('./services/bagfilterMaintenance');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -65,6 +66,7 @@ app.use((req, res) => {
 async function start() {
   await ensureSchema();
   await hydrateFromDb();
+  await ensureBagFilterRepairHistory();
   startSimulationLoop();
   startPlantSimulationLoop();
   startControlCentreSimulationLoop();

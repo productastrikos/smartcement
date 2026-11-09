@@ -1,5 +1,6 @@
 const { state, deriveStatus, HISTORY_LENGTH, EMISSION_LIMIT_MGNM3 } = require('../data/bagfilter');
 const { addAlert, hasActiveAlertForAsset } = require('../data/alertsStore');
+const { resolveActiveAlertsForAsset } = require('./bagfilterMaintenance');
 const { insertReading } = require('../db/pg-index');
 const { nudgeToday } = require('../data/kpiTrends');
 
@@ -51,6 +52,8 @@ async function tick() {
           assetId: compartment.id,
         });
       }
+    } else if (r.status === 'normal' && (prevStatus === 'warning' || prevStatus === 'critical')) {
+      await resolveActiveAlertsForAsset(compartment.id, 'bag-filter');
     }
 
     const history = state.history[compartment.id];
