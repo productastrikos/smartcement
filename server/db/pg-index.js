@@ -3,6 +3,8 @@ require('dotenv').config();
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  // Set DATABASE_SSL=true for hosted Postgres that requires SSL (e.g. external connections)
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
   idleTimeoutMillis: 60000,
 });
 
