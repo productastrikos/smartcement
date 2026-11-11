@@ -38,38 +38,6 @@ const state = {
   history: Object.fromEntries(COMPARTMENTS.map((c) => [c.id, []])),
 };
 
-// Hydrates live state from the database so the current reading and trend
-// chart continue seamlessly from real persisted history instead of resetting
-// to fresh random values on every server restart.
-// CHANGED: now async, uses pg-index instead of old SQLite db
-async function hydrateFromDb() {
-  const { getReadingsSince } = require('../db/pg-index');   // CHANGED
-  const sinceIso = new Date(Date.now() - HISTORY_LENGTH * 2 * 60000).toISOString();
-
-  for (const compartment of state.compartments) {
-    const allRows = await getReadingsSince(compartment.id, sinceIso);   // CHANGED: added await
-    const rows = allRows.slice(-HISTORY_LENGTH);
-    if (rows.length === 0) continue;
-
-    const last = rows[rows.length - 1];
-    compartment.reading = {
-      differentialPressure_mbar: last.differential_pressure,
-      airflow_m3h: last.airflow,
-      acousticIndex_pct: last.acoustic_index,
-      emission_mgNm3: last.emission,
-      status: last.status,
-      bagBlindingEtaHours: compartment.reading.bagBlindingEtaHours,
-      updatedAt: last.ts,
-    };
-
-    state.history[compartment.id] = rows.map((r) => ({
-      t: r.ts,
-      differentialPressure_mbar: r.differential_pressure,
-      emission_mgNm3: r.emission,
-    }));
-  }
-}
-
 module.exports = {
   EMISSION_LIMIT_MGNM3,
   HISTORY_LENGTH,
@@ -77,5 +45,4 @@ module.exports = {
   state,
   makeReading,
   deriveStatus,
-  hydrateFromDb,
 };

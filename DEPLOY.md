@@ -35,23 +35,22 @@ pm2 start npx --name "cempulse_3355" -- serve -s build -p 3355
 `REACT_APP_API_URL` is baked into the build at build time (CRA env vars are
 compile-time, not runtime) — rebuild whenever this value needs to change.
 
-## 2. Build + run the backend (Express + PostgreSQL)
+## 2. Build + run the backend (Express, no database)
 
 ```bash
 cd server
 npm install
 ```
 
-Set these env vars before starting (e.g. in `server/.env`, copy from
-`server/.env.example`):
+The backend keeps all state in memory (seeded with 30 days of demo history on
+boot) — no database to provision or migrate. Set these env vars before
+starting (e.g. in `server/.env`, copy from `server/.env.example`):
 
 ```
 PORT=4355
 JWT_SECRET=<a real secret — do not reuse the example value>
 JWT_EXPIRES_IN=8h
 CORS_ORIGIN=https://cempulse.astrikos.xyz:8443,http://localhost:3000
-DATABASE_URL=<Postgres connection string>
-DATABASE_SSL=true   # only if the Postgres connection requires SSL (e.g. a managed/external DB)
 ```
 
 `CORS_ORIGIN` accepts a comma-separated list, so local dev

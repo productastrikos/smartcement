@@ -1,7 +1,7 @@
 const express = require('express');
 const { state, EMISSION_LIMIT_MGNM3 } = require('../data/bagfilter');
 const { getAlerts, acknowledgeAlert } = require('../data/alertsStore');
-const { getResolvedAlerts } = require('../db/pg-index');   // <-- CHANGED: now points to Postgres
+const { getResolvedAlerts } = require('../db/pg-index');
 const { getTrend } = require('../data/kpiTrends');
 const { generateAdvisories } = require('../services/advisories');
 

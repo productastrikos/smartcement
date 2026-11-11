@@ -1,21 +1,15 @@
-const { pool } = require('../db/pg-index');
+const { resolveAlertsForAsset, getResolvedAlerts, insertAlertRow } = require('../db/pg-index');
 
 async function resolveActiveAlertsForAsset(assetId, category) {
-  await pool.query(
-    `UPDATE alerts SET acknowledged = 1, resolved_at = $1
-     WHERE asset_id = $2 AND category = $3 AND acknowledged = 0`,
-    [new Date().toISOString(), assetId, category]
-  );
+  await resolveAlertsForAsset(assetId, category, new Date().toISOString());
 }
 
 // Seeds historical, already-resolved repair records so the MTTR KPI has a
-// sample on a fresh database instead of showing "—" until a user manually
-// acknowledges enough real alerts.
+// sample on a fresh in-memory store instead of showing "—" until a user
+// manually acknowledges enough real alerts.
 async function ensureBagFilterRepairHistory() {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*) AS count FROM alerts WHERE category = 'bag-filter' AND resolved_at IS NOT NULL`
-  );
-  if (Number(rows[0].count) >= 5) return;
+  const existing = await getResolvedAlerts('bag-filter', 1000);
+  if (existing.length >= 5) return;
 
   const now = Date.now();
   const records = [];
@@ -34,19 +28,19 @@ async function ensureBagFilterRepairHistory() {
   }
 
   for (const rec of records) {
-    await pool.query(
-      `INSERT INTO alerts (alert_id, type, category, subtype, title, message, zone, asset_id, acknowledged, created_at, resolved_at)
-       VALUES ($1, 'warning', 'bag-filter', NULL, $2, $3, NULL, $4, 1, $5, $6)
-       ON CONFLICT (alert_id) DO NOTHING`,
-      [
-        rec.alertId,
-        `${rec.assetId} — early bag blinding signature detected`,
-        'AI model flagged likely bag blinding based on pressure and acoustic drift. Inspection completed and bags replaced.',
-        rec.assetId,
-        rec.createdAt,
-        rec.resolvedAt,
-      ]
-    );
+    await insertAlertRow({
+      alertId: rec.alertId,
+      type: 'warning',
+      category: 'bag-filter',
+      subtype: null,
+      title: `${rec.assetId} — early bag blinding signature detected`,
+      message: 'AI model flagged likely bag blinding based on pressure and acoustic drift. Inspection completed and bags replaced.',
+      zone: null,
+      assetId: rec.assetId,
+      acknowledged: true,
+      createdAt: rec.createdAt,
+      resolvedAt: rec.resolvedAt,
+    });
   }
 }
 

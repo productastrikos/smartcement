@@ -1,55 +1,28 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+// In-memory data store. Same function names and return shapes as the
+// previous PostgreSQL-backed implementation, so every consumer (routes,
+// services, data modules) works unchanged.
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // Set DATABASE_SSL=true for hosted Postgres that requires SSL (e.g. external connections)
-  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
-  idleTimeoutMillis: 60000,
-});
+const READINGS_CAP = 20000;
+const ALERTS_CAP = 20000;
+const PLANT_METRICS_CAP = 20000;
+const DOWNTIME_CAP = 5000;
+const OPTIMIZATION_EVENTS_CAP = 5000;
+const QUALITY_BATCHES_CAP = 20000;
 
-let loggedFirstConnection = false;
-pool.on('connect', () => {
-  if (!loggedFirstConnection) {
-    console.log('Connected to PostgreSQL database');
-    loggedFirstConnection = true;
-  }
-});
-pool.on('error', (err) => console.error('Unexpected PostgreSQL error', err));
+const readings = [];
+const alerts = [];
+const plantMetrics = [];
+const downtimeEvents = [];
+const optimizationEvents = [];
+const qualityBatches = [];
 
-// ---------------------------------------------------------------------
-// Row mappers (same shape your routes already expect)
-// ---------------------------------------------------------------------
-
-function rowToAlert(row) {
-  if (!row) return null;
-  return {
-    alertId: row.alert_id,
-    type: row.type,
-    category: row.category,
-    subtype: row.subtype,
-    title: row.title,
-    message: row.message,
-    zone: row.zone,
-    assetId: row.asset_id,
-    acknowledged: !!row.acknowledged,
-    createdAt: row.created_at,
-    resolvedAt: row.resolved_at,
-  };
+function capPush(arr, item, cap) {
+  arr.push(item);
+  if (arr.length > cap) arr.splice(0, arr.length - cap);
 }
 
-function rowToQualityBatch(row) {
-  return {
-    batchId: row.batch_id,
-    ts: row.ts,
-    predictedFreeLime: row.predicted_free_lime,
-    measuredFreeLime: row.measured_free_lime,
-    predictedFineness: row.predicted_fineness,
-    measuredFineness: row.measured_fineness,
-    predictedStrength: row.predicted_strength,
-    measuredStrength: row.measured_strength,
-    status: row.status,
-  };
+function dayOf(iso) {
+  return String(iso).slice(0, 10);
 }
 
 // ---------------------------------------------------------------------
@@ -57,28 +30,28 @@ function rowToQualityBatch(row) {
 // ---------------------------------------------------------------------
 
 async function insertReading(reading) {
-  await pool.query(
-    `INSERT INTO readings (compartment_id, zone, ts, differential_pressure, airflow, acoustic_index, emission, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [reading.compartmentId, reading.zone, reading.ts, reading.differentialPressure,
-     reading.airflow, reading.acousticIndex, reading.emission, reading.status]
-  );
+  capPush(readings, {
+    compartment_id: reading.compartmentId,
+    zone: reading.zone,
+    ts: reading.ts,
+    differential_pressure: reading.differentialPressure,
+    airflow: reading.airflow,
+    acoustic_index: reading.acousticIndex,
+    emission: reading.emission,
+    status: reading.status,
+  }, READINGS_CAP);
 }
 
 async function getReadingsSince(compartmentId, sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT * FROM readings WHERE compartment_id = $1 AND ts >= $2 ORDER BY ts ASC`,
-    [compartmentId, sinceIso]
-  );
-  return rows;
+  return readings
+    .filter((r) => r.compartment_id === compartmentId && r.ts >= sinceIso)
+    .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
 }
 
 async function getReadingsForAllSince(sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT * FROM readings WHERE ts >= $1 ORDER BY ts ASC`,
-    [sinceIso]
-  );
-  return rows;
+  return readings
+    .filter((r) => r.ts >= sinceIso)
+    .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
 }
 
 // ---------------------------------------------------------------------
@@ -86,101 +59,132 @@ async function getReadingsForAllSince(sinceIso) {
 // ---------------------------------------------------------------------
 
 async function insertAlertRow(alert) {
-  await pool.query(
-    `INSERT INTO alerts (alert_id, type, category, subtype, title, message, zone, asset_id, acknowledged, created_at, resolved_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-     ON CONFLICT (alert_id) DO NOTHING`,
-    [alert.alertId, alert.type, alert.category, alert.subtype || null, alert.title,
-     alert.message, alert.zone || null, alert.assetId || null,
-     alert.acknowledged ? 1 : 0, alert.createdAt, alert.resolvedAt || null]
-  );
+  if (alerts.some((a) => a.alertId === alert.alertId)) return;
+  capPush(alerts, {
+    alertId: alert.alertId,
+    type: alert.type,
+    category: alert.category,
+    subtype: alert.subtype || null,
+    title: alert.title,
+    message: alert.message,
+    zone: alert.zone || null,
+    assetId: alert.assetId || null,
+    acknowledged: !!alert.acknowledged,
+    createdAt: alert.createdAt,
+    resolvedAt: alert.resolvedAt || null,
+  }, ALERTS_CAP);
 }
 
 async function resolveAlertRow(alertId, resolvedAt) {
-  await pool.query(
-    `UPDATE alerts SET acknowledged = 1, resolved_at = $1 WHERE alert_id = $2`,
-    [resolvedAt, alertId]
-  );
+  const alert = alerts.find((a) => a.alertId === alertId);
+  if (!alert) return;
+  alert.acknowledged = true;
+  alert.resolvedAt = resolvedAt;
+}
+
+function sortByCreatedAtDesc(a, b) {
+  return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
 }
 
 async function getAlerts() {
-  const { rows } = await pool.query(`SELECT * FROM alerts ORDER BY created_at DESC LIMIT 100`);
-  return rows.map(rowToAlert);
+  return [...alerts].sort(sortByCreatedAtDesc).slice(0, 100);
 }
 
 async function getAlertsByCategory(category) {
-  const { rows } = await pool.query(
-    `SELECT * FROM alerts WHERE category = $1 ORDER BY created_at DESC LIMIT 100`,
-    [category]
-  );
-  return rows.map(rowToAlert);
+  return alerts
+    .filter((a) => a.category === category)
+    .sort(sortByCreatedAtDesc)
+    .slice(0, 100);
 }
 
 async function getResolvedAlerts(category, limit = 20) {
-  const { rows } = await pool.query(
-    `SELECT * FROM alerts WHERE category = $1 AND resolved_at IS NOT NULL ORDER BY resolved_at DESC LIMIT $2`,
-    [category, limit]
-  );
-  return rows.map(rowToAlert);
+  return alerts
+    .filter((a) => a.category === category && a.resolvedAt != null)
+    .sort((a, b) => (a.resolvedAt < b.resolvedAt ? 1 : a.resolvedAt > b.resolvedAt ? -1 : 0))
+    .slice(0, limit);
 }
 
 async function hasActiveAlertForAsset(assetId, category) {
-  const { rows } = await pool.query(
-    `SELECT 1 FROM alerts WHERE asset_id = $1 AND category = $2 AND acknowledged = 0 LIMIT 1`,
-    [assetId, category]
-  );
-  return rows.length > 0;
+  return alerts.some((a) => a.assetId === assetId && a.category === category && !a.acknowledged);
+}
+
+async function resolveAlertsForAsset(assetId, category, resolvedAt) {
+  for (const a of alerts) {
+    if (a.assetId === assetId && a.category === category && !a.acknowledged) {
+      a.acknowledged = true;
+      a.resolvedAt = resolvedAt;
+    }
+  }
 }
 
 async function getUnresolvedAlertCountsByCategory() {
-  const { rows } = await pool.query(
-    `SELECT category, COUNT(*) AS count FROM alerts WHERE acknowledged = 0 GROUP BY category`
-  );
-  return Object.fromEntries(rows.map((r) => [r.category, Number(r.count)]));
+  const counts = {};
+  for (const a of alerts) {
+    if (a.acknowledged) continue;
+    counts[a.category] = (counts[a.category] || 0) + 1;
+  }
+  return counts;
 }
 
 async function getUnresolvedAlertCountsByType() {
-  const { rows } = await pool.query(
-    `SELECT type, COUNT(*) AS count FROM alerts WHERE acknowledged = 0 GROUP BY type`
-  );
-  return Object.fromEntries(rows.map((r) => [r.type, Number(r.count)]));
+  const counts = {};
+  for (const a of alerts) {
+    if (a.acknowledged) continue;
+    counts[a.type] = (counts[a.type] || 0) + 1;
+  }
+  return counts;
 }
 
 async function getTopUnresolvedAlerts(limit = 5) {
-  const { rows } = await pool.query(
-    `SELECT * FROM alerts WHERE acknowledged = 0
-     ORDER BY CASE type WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, created_at DESC
-     LIMIT $1`,
-    [limit]
-  );
-  return rows.map(rowToAlert);
+  const rank = { critical: 0, warning: 1 };
+  return alerts
+    .filter((a) => !a.acknowledged)
+    .sort((a, b) => {
+      const ra = rank[a.type] ?? 2;
+      const rb = rank[b.type] ?? 2;
+      if (ra !== rb) return ra - rb;
+      return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+    })
+    .slice(0, limit);
 }
 
 async function getLatestCriticalAlert() {
-  const { rows } = await pool.query(
-    `SELECT * FROM alerts WHERE type = 'critical' ORDER BY created_at DESC LIMIT 1`
-  );
-  return rowToAlert(rows[0]);
+  const critical = alerts
+    .filter((a) => a.type === 'critical')
+    .sort(sortByCreatedAtDesc);
+  return critical[0] || null;
 }
 
 async function getAlertCountsPerDaySince(sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT substr(created_at::text, 1, 10) AS day, type, COUNT(*) AS count
-     FROM alerts WHERE created_at >= $1
-     GROUP BY day, type ORDER BY day ASC`,
-    [sinceIso]
-  );
-  return rows;
+  const counts = {};
+  for (const a of alerts) {
+    if (a.createdAt < sinceIso) continue;
+    const day = dayOf(a.createdAt);
+    const key = `${day}|${a.type}`;
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .map(([key, count]) => {
+      const [day, type] = key.split('|');
+      return { day, type, count };
+    })
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 }
 
 async function getSubtypeCountsPerDaySince(category, sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT substr(created_at::text, 1, 10) AS day, subtype, COUNT(*) AS count
-     FROM alerts WHERE category = $1 AND created_at >= $2 AND subtype IS NOT NULL
-     GROUP BY day, subtype ORDER BY day ASC`,
-    [category, sinceIso]
-  );
-  return rows;
+  const counts = {};
+  for (const a of alerts) {
+    if (a.category !== category || a.createdAt < sinceIso || a.subtype == null) continue;
+    const day = dayOf(a.createdAt);
+    const key = `${day}|${a.subtype}`;
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .map(([key, count]) => {
+      const [day, subtype] = key.split('|');
+      return { day, subtype, count };
+    })
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 }
 
 // ---------------------------------------------------------------------
@@ -188,46 +192,47 @@ async function getSubtypeCountsPerDaySince(category, sinceIso) {
 // ---------------------------------------------------------------------
 
 async function insertPlantMetric(metricKey, ts, value) {
-  await pool.query(
-    `INSERT INTO plant_metrics (metric_key, ts, value) VALUES ($1,$2,$3)`,
-    [metricKey, ts, value]
-  );
+  capPush(plantMetrics, { metric_key: metricKey, ts, value }, PLANT_METRICS_CAP);
 }
 
 async function getPlantMetricSeries(metricKey, sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT ts, value FROM plant_metrics WHERE metric_key = $1 AND ts >= $2 ORDER BY ts ASC`,
-    [metricKey, sinceIso]
-  );
-  return rows;
+  return plantMetrics
+    .filter((m) => m.metric_key === metricKey && m.ts >= sinceIso)
+    .sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0))
+    .map((m) => ({ ts: m.ts, value: m.value }));
 }
 
 async function getLatestPlantMetric(metricKey) {
-  const { rows } = await pool.query(
-    `SELECT ts, value FROM plant_metrics WHERE metric_key = $1 ORDER BY ts DESC LIMIT 1`,
-    [metricKey]
-  );
-  return rows[0];
+  const rows = plantMetrics
+    .filter((m) => m.metric_key === metricKey)
+    .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
+  return rows[0] ? { ts: rows[0].ts, value: rows[0].value } : undefined;
 }
 
 async function getPlantMetricDailySum(metricKey, sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT substr(ts::text, 1, 10) AS day, SUM(value) AS total
-     FROM plant_metrics WHERE metric_key = $1 AND ts >= $2
-     GROUP BY day ORDER BY day ASC`,
-    [metricKey, sinceIso]
-  );
-  return rows;
+  const sums = {};
+  for (const m of plantMetrics) {
+    if (m.metric_key !== metricKey || m.ts < sinceIso) continue;
+    const day = dayOf(m.ts);
+    sums[day] = (sums[day] || 0) + m.value;
+  }
+  return Object.entries(sums)
+    .map(([day, total]) => ({ day, total }))
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 }
 
 async function getPlantMetricDailyAvg(metricKey, sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT substr(ts::text, 1, 10) AS day, AVG(value) AS avg
-     FROM plant_metrics WHERE metric_key = $1 AND ts >= $2
-     GROUP BY day ORDER BY day ASC`,
-    [metricKey, sinceIso]
-  );
-  return rows;
+  const sums = {};
+  const counts = {};
+  for (const m of plantMetrics) {
+    if (m.metric_key !== metricKey || m.ts < sinceIso) continue;
+    const day = dayOf(m.ts);
+    sums[day] = (sums[day] || 0) + m.value;
+    counts[day] = (counts[day] || 0) + 1;
+  }
+  return Object.keys(sums)
+    .map((day) => ({ day, avg: sums[day] / counts[day] }))
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
 }
 
 // ---------------------------------------------------------------------
@@ -235,18 +240,13 @@ async function getPlantMetricDailyAvg(metricKey, sinceIso) {
 // ---------------------------------------------------------------------
 
 async function insertDowntimeEvent(moduleId, minutes, ts) {
-  await pool.query(
-    `INSERT INTO downtime_events (module_id, minutes, ts) VALUES ($1,$2,$3)`,
-    [moduleId, minutes, ts]
-  );
+  capPush(downtimeEvents, { module_id: moduleId, minutes, ts }, DOWNTIME_CAP);
 }
 
 async function getDowntimeMinutesSince(sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT COALESCE(SUM(minutes), 0) AS total FROM downtime_events WHERE ts >= $1`,
-    [sinceIso]
-  );
-  return Number(rows[0].total);
+  return downtimeEvents
+    .filter((d) => d.ts >= sinceIso)
+    .reduce((sum, d) => sum + d.minutes, 0);
 }
 
 // ---------------------------------------------------------------------
@@ -254,25 +254,26 @@ async function getDowntimeMinutesSince(sinceIso) {
 // ---------------------------------------------------------------------
 
 async function insertOptimizationEvent(event) {
-  await pool.query(
-    `INSERT INTO optimization_events (ts, parameter, before_value, after_value, savings_impact_usd)
-     VALUES ($1,$2,$3,$4,$5)`,
-    [event.ts, event.parameter, event.beforeValue, event.afterValue, event.savingsImpactUsd]
-  );
+  capPush(optimizationEvents, {
+    ts: event.ts,
+    parameter: event.parameter,
+    before_value: event.beforeValue,
+    after_value: event.afterValue,
+    savings_impact_usd: event.savingsImpactUsd,
+  }, OPTIMIZATION_EVENTS_CAP);
 }
 
 async function getRecentOptimizationEvents(limit = 20) {
-  const { rows } = await pool.query(
-    `SELECT * FROM optimization_events ORDER BY ts DESC LIMIT $1`,
-    [limit]
-  );
-  return rows.map((r) => ({
-    ts: r.ts,
-    parameter: r.parameter,
-    beforeValue: r.before_value,
-    afterValue: r.after_value,
-    savingsImpactUsd: r.savings_impact_usd,
-  }));
+  return [...optimizationEvents]
+    .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
+    .slice(0, limit)
+    .map((e) => ({
+      ts: e.ts,
+      parameter: e.parameter,
+      beforeValue: e.before_value,
+      afterValue: e.after_value,
+      savingsImpactUsd: e.savings_impact_usd,
+    }));
 }
 
 // ---------------------------------------------------------------------
@@ -280,60 +281,28 @@ async function getRecentOptimizationEvents(limit = 20) {
 // ---------------------------------------------------------------------
 
 async function insertQualityBatch(batch) {
-  await pool.query(
-    `INSERT INTO quality_batches (batch_id, ts, predicted_free_lime, measured_free_lime, predicted_fineness, measured_fineness, predicted_strength, measured_strength, status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [batch.batchId, batch.ts, batch.predictedFreeLime, batch.measuredFreeLime,
-     batch.predictedFineness, batch.measuredFineness, batch.predictedStrength,
-     batch.measuredStrength, batch.status]
-  );
+  capPush(qualityBatches, { ...batch }, QUALITY_BATCHES_CAP);
 }
 
 async function getRecentQualityBatches(limit = 20) {
-  const { rows } = await pool.query(
-    `SELECT * FROM quality_batches ORDER BY ts DESC LIMIT $1`,
-    [limit]
-  );
-  return rows.map(rowToQualityBatch);
+  return [...qualityBatches]
+    .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
+    .slice(0, limit);
 }
 
 async function getQualityBatchCount() {
-  const { rows } = await pool.query(`SELECT COUNT(*) AS count FROM quality_batches`);
-  return Number(rows[0].count);
+  return qualityBatches.length;
 }
 
 async function getOffSpecBatchCountSince(sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*) AS count FROM quality_batches WHERE ts >= $1 AND status = 'off-spec'`,
-    [sinceIso]
-  );
-  return Number(rows[0].count);
+  return qualityBatches.filter((b) => b.ts >= sinceIso && b.status === 'off-spec').length;
 }
 
 async function getBatchCountSince(sinceIso) {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*) AS count FROM quality_batches WHERE ts >= $1`,
-    [sinceIso]
-  );
-  return Number(rows[0].count);
-}
-
-// ---------------------------------------------------------------------
-// Retention
-// ---------------------------------------------------------------------
-
-async function deleteReadingsOlderThan(beforeIso) {
-  const { rowCount } = await pool.query(`DELETE FROM readings WHERE ts < $1`, [beforeIso]);
-  return rowCount;
-}
-
-async function deletePlantMetricsOlderThan(beforeIso) {
-  const { rowCount } = await pool.query(`DELETE FROM plant_metrics WHERE ts < $1`, [beforeIso]);
-  return rowCount;
+  return qualityBatches.filter((b) => b.ts >= sinceIso).length;
 }
 
 module.exports = {
-  pool,
   insertReading,
   insertAlertRow,
   resolveAlertRow,
@@ -341,6 +310,7 @@ module.exports = {
   getAlertsByCategory,
   getResolvedAlerts,
   hasActiveAlertForAsset,
+  resolveAlertsForAsset,
   getReadingsSince,
   getReadingsForAllSince,
   insertPlantMetric,
@@ -363,6 +333,4 @@ module.exports = {
   getQualityBatchCount,
   getOffSpecBatchCountSince,
   getBatchCountSince,
-  deleteReadingsOlderThan,
-  deletePlantMetricsOlderThan,
 };

@@ -4,8 +4,7 @@ const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 
-const { ensureSchema } = require('./db/schema');
-const { hydrateFromDb } = require('./data/bagfilter');
+const { seedDemoHistory } = require('./db/seedDemoHistory');
 const { startSimulationLoop } = require('./services/simulation');
 const { startPlantSimulationLoop } = require('./services/plantSimulation');
 const { startControlCentreSimulationLoop } = require('./services/controlCentreSimulation');
@@ -15,7 +14,6 @@ const { startEnergyOptimizationSimulationLoop } = require('./services/energyOpti
 const { startQualityPredictionSimulationLoop } = require('./services/qualityPredictionSimulation');
 const { startWorkerSafetySimulationLoop } = require('./services/workerSafetySimulation');
 const { startEmissionsSimulationLoop } = require('./services/emissionsSimulation');
-const { startRetentionLoop } = require('./services/retention');
 const { ensureBagFilterRepairHistory } = require('./services/bagfilterMaintenance');
 const { ensurePredictiveMaintenanceRepairHistory } = require('./services/predictiveMaintenanceHistory');
 const healthRoutes = require('./routes/health');
@@ -69,8 +67,7 @@ app.use((req, res) => {
 });
 
 async function start() {
-  await ensureSchema();
-  await hydrateFromDb();
+  await seedDemoHistory();
   await ensureBagFilterRepairHistory();
   await ensurePredictiveMaintenanceRepairHistory();
   startSimulationLoop();
@@ -82,7 +79,6 @@ async function start() {
   startQualityPredictionSimulationLoop();
   startWorkerSafetySimulationLoop();
   startEmissionsSimulationLoop();
-  startRetentionLoop();
 
   app.listen(PORT, () => {
     console.log(`CemPulse API listening on http://localhost:${PORT}`);

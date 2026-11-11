@@ -1,4 +1,4 @@
-const { pool } = require('../db/pg-index');
+const { getResolvedAlerts, insertAlertRow } = require('../db/pg-index');
 
 const ISSUE_LABELS = {
   bearing_wear: 'bearing wear',
@@ -15,13 +15,11 @@ const DEMO_ISSUES = [
 ];
 
 // Seeds historical, already-resolved work-order records so workOrderLeadTimeHours
-// and downtimeAvoidedUsd/Days have a sample on a fresh database instead of
+// and downtimeAvoidedUsd/Days have a sample on a fresh in-memory store instead of
 // showing null/0 until a user manually acknowledges enough real alerts.
 async function ensurePredictiveMaintenanceRepairHistory() {
-  const { rows } = await pool.query(
-    `SELECT COUNT(*) AS count FROM alerts WHERE category = 'predictive-maintenance' AND resolved_at IS NOT NULL`
-  );
-  if (Number(rows[0].count) >= 5) return;
+  const existing = await getResolvedAlerts('predictive-maintenance', 1000);
+  if (existing.length >= 5) return;
 
   const now = Date.now();
   const records = [];
@@ -42,20 +40,19 @@ async function ensurePredictiveMaintenanceRepairHistory() {
   }
 
   for (const rec of records) {
-    await pool.query(
-      `INSERT INTO alerts (alert_id, type, category, subtype, title, message, zone, asset_id, acknowledged, created_at, resolved_at)
-       VALUES ($1, 'warning', 'predictive-maintenance', $2, $3, $4, NULL, $5, 1, $6, $7)
-       ON CONFLICT (alert_id) DO NOTHING`,
-      [
-        rec.alertId,
-        rec.issue,
-        `${rec.assetId} — asset drift detected (${ISSUE_LABELS[rec.issue]})`,
-        `Predicted issue: ${ISSUE_LABELS[rec.issue]}. Work order completed and asset returned to normal health.`,
-        rec.assetId,
-        rec.createdAt,
-        rec.resolvedAt,
-      ]
-    );
+    await insertAlertRow({
+      alertId: rec.alertId,
+      type: 'warning',
+      category: 'predictive-maintenance',
+      subtype: rec.issue,
+      title: `${rec.assetId} — asset drift detected (${ISSUE_LABELS[rec.issue]})`,
+      message: `Predicted issue: ${ISSUE_LABELS[rec.issue]}. Work order completed and asset returned to normal health.`,
+      zone: null,
+      assetId: rec.assetId,
+      acknowledged: true,
+      createdAt: rec.createdAt,
+      resolvedAt: rec.resolvedAt,
+    });
   }
 }
 

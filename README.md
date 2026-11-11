@@ -22,7 +22,7 @@ line), ready to be built out the same way in a later phase.
 | Frontend | React 18 (Create React App), React Router v6, Tailwind CSS 3, Chart.js 4 |
 | Backend | Node.js, Express |
 | Auth | JWT + bcryptjs, in-memory demo users |
-| Data | Simulation engine backed by PostgreSQL (`pg`), polled by the client every ~10-12s |
+| Data | In-memory simulation engine, polled by the client every ~10-12s |
 
 ---
 
@@ -108,21 +108,11 @@ header obtained from `POST /api/auth/login`.
 
 ## Notes
 
-- Readings/alerts/metrics persist to PostgreSQL (`DATABASE_URL` in `server/.env`). The
-  server self-provisions its schema on every boot (`server/db/schema.js`, idempotent
-  `CREATE TABLE IF NOT EXISTS`), so a brand-new empty database is fine — no manual
-  migration step required.
-- To seed 30 days of realistic historical data (optional, for demo purposes), run
-  `npm run seed --prefix server` once against your Postgres instance. The seed is safe to
-  rerun: it skips seeding (no-op) if the tables already have data, and only clears and
-  reseeds when you explicitly pass `SEED_RESET=true`.
-- Against the Render-hosted database from your local machine (its external connection
-  string requires SSL), run `DATABASE_URL=<external connection string> DATABASE_SSL=true npm run seed:remote`
-  from the repo root. The external connection string is in the Render dashboard under the
-  `cempulse-db` database → "Connect" → "External Database URL".
-- A retention job (`server/services/retention.js`) runs hourly and deletes `readings` and
-  `plant_metrics` rows older than 30 days, keeping the free-tier Postgres instance's row
-  count bounded.
+- Readings/alerts/metrics live entirely in memory (`server/db/pg-index.js`) — there is no
+  database to provision or migrate. On boot the server seeds 30 days of demo history
+  (`server/db/seedDemoHistory.js`) so dashboards and KPIs show real values immediately.
+  Each in-memory collection is capped (e.g. last 20,000 rows) so memory usage stays bounded;
+  restarting the server resets state back to a fresh seeded history.
 - The simulation random-walks compartment readings and raises alerts when differential
   pressure, acoustic index, or emissions cross the thresholds defined in
   `server/services/simulation.js`.
@@ -136,21 +126,19 @@ header obtained from `POST /api/auth/login`.
 In production the Express server also serves the built React app, so the whole site is one
 Node process — no separate static host needed.
 
-1. **Provision a PostgreSQL database** (Hostinger VPS can run Postgres directly, or point
-   at any reachable Postgres instance) and note its connection string.
-2. **Node.js hosting panel** (e.g. Hostinger hPanel → "Setup Node.js App"):
+1. **Node.js hosting panel** (e.g. Hostinger hPanel → "Setup Node.js App"):
    - Application root: repo root (this folder)
    - Application startup file: `server/index.js`
    - Node version: any LTS release (18, 20, or 22) — there are no native modules to compile
-3. Set environment variables in the panel: `DATABASE_URL` (required), `JWT_SECRET`
-   (required), `JWT_EXPIRES_IN` (optional, defaults to `8h`). Don't set `PORT` — the host
-   assigns it.
-4. Client build config: `client/.env.production` sets `REACT_APP_API_URL=/api` (a relative
+2. Set environment variables in the panel: `JWT_SECRET` (required), `JWT_EXPIRES_IN`
+   (optional, defaults to `8h`), `CORS_ORIGIN` (optional). Don't set `PORT` — the host
+   assigns it. No database is needed.
+3. Client build config: `client/.env.production` sets `REACT_APP_API_URL=/api` (a relative
    path) so the deployed build calls the API on the same origin it's served from — no need
    to hardcode a domain. Only change this if the API is deployed on a different origin than
    the static frontend.
-5. Click **Run NPM Install** in the panel. This triggers the root `postinstall` script,
+4. Click **Run NPM Install** in the panel. This triggers the root `postinstall` script,
    which installs both `server/` and `client/` dependencies and runs the client's
    production build automatically (`npm run build`) — no manual build step needed.
-6. Start/restart the app. It provisions its own database schema on boot, then serves the
+5. Start/restart the app. It seeds its in-memory demo history on boot, then serves the
    API under `/api/*` and the React app for every other route from the same domain and port.
