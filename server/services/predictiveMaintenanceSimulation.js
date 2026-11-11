@@ -1,6 +1,7 @@
 const { ASSETS, ISSUE_TYPES, state, deriveBaselineStatus } = require('../data/predictiveMaintenance');
 const { addAlert, hasActiveAlertForAsset } = require('../data/alertsStore');
 const { insertPlantMetric } = require('../db/pg-index');
+const { resolveActiveAlertsForAsset } = require('./bagfilterMaintenance');
 
 function randomWalk(value, step, min, max) {
   const next = value + (Math.random() - 0.5) * step;
@@ -50,6 +51,8 @@ async function tick() {
 
     if (status === 'warning' || status === 'critical') {
       s.healthScore = randomWalk(s.healthScore + 1.5, 2, 15, 100);
+    } else if (status === 'normal' && prevStatus !== 'normal') {
+      await resolveActiveAlertsForAsset(asset.id, 'predictive-maintenance');
     }
   }
 }

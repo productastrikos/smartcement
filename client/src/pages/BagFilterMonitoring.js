@@ -137,7 +137,11 @@ export default function BagFilterMonitoring() {
   const leadTimeValue = kpis?.bagFailureLeadTime
     ? `${kpis.bagFailureLeadTime.minHours}–${kpis.bagFailureLeadTime.maxHours}h`
     : '48–96h';
-  const mttrValue = kpis?.mttr?.hours != null ? `${kpis.mttr.hours.toFixed(1)}h` : '—';
+  const mttrValue = (() => {
+    if (kpis?.mttr?.hours == null || !kpis.mttr.sampleSize) return '—';
+    const hours = kpis.mttr.hours;
+    return hours < 1 ? `${Math.round(hours * 60)}m` : `${hours.toFixed(1)}h`;
+  })();
   const deviationCount = kpis?.pressureDeviation?.count ?? 0;
   const deviationTotal = kpis?.pressureDeviation?.totalCompartments ?? compartments.length;
 
