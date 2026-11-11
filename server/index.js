@@ -33,7 +33,11 @@ const { requireAuth } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
 app.use('/api/health', healthRoutes);
