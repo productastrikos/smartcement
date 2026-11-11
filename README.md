@@ -113,8 +113,16 @@ header obtained from `POST /api/auth/login`.
   `CREATE TABLE IF NOT EXISTS`), so a brand-new empty database is fine — no manual
   migration step required.
 - To seed 30 days of realistic historical data (optional, for demo purposes), run
-  `npm run seed --prefix server` once against your Postgres instance. This is destructive
-  (clears existing rows in the simulated tables) — don't run it against data you want to keep.
+  `npm run seed --prefix server` once against your Postgres instance. The seed is safe to
+  rerun: it skips seeding (no-op) if the tables already have data, and only clears and
+  reseeds when you explicitly pass `SEED_RESET=true`.
+- Against the Render-hosted database from your local machine (its external connection
+  string requires SSL), run `DATABASE_URL=<external connection string> DATABASE_SSL=true npm run seed:remote`
+  from the repo root. The external connection string is in the Render dashboard under the
+  `cempulse-db` database → "Connect" → "External Database URL".
+- A retention job (`server/services/retention.js`) runs hourly and deletes `readings` and
+  `plant_metrics` rows older than 30 days, keeping the free-tier Postgres instance's row
+  count bounded.
 - The simulation random-walks compartment readings and raises alerts when differential
   pressure, acoustic index, or emissions cross the thresholds defined in
   `server/services/simulation.js`.

@@ -10,7 +10,12 @@ const { Pool } = require('pg');
 require('dotenv').config();
 const { ensureSchema } = require('./schema');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  // Same SSL handling as db/pg-index.js — required for Render's external
+  // Postgres connection string when this script is run from a local machine.
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+});
 
 const DAYS = 30;
 const now = Date.now();
@@ -20,8 +25,13 @@ function rand(min, max) {
   return min + Math.random() * (max - min);
 }
 
+async function hasExistingData() {
+  const { rows } = await pool.query('SELECT COUNT(*) AS count FROM readings');
+  return Number(rows[0].count) > 0;
+}
+
 async function clearExisting() {
-  console.log('Clearing existing rows...');
+  console.log('Clearing existing rows (SEED_RESET=true)...');
   await pool.query('DELETE FROM readings');
   await pool.query('DELETE FROM alerts');
   await pool.query('DELETE FROM plant_metrics');
@@ -236,7 +246,16 @@ async function seedQualityBatches() {
 async function main() {
   try {
     await ensureSchema(pool);
-    await clearExisting();
+
+    const alreadySeeded = await hasExistingData();
+    if (alreadySeeded && process.env.SEED_RESET !== 'true') {
+      console.log('Tables already contain data — skipping seed. Set SEED_RESET=true to clear and reseed.');
+      return;
+    }
+    if (alreadySeeded) {
+      await clearExisting();
+    }
+
     await seedReadings();
     await seedAlerts();
     await seedPlantMetrics();

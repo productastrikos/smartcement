@@ -15,6 +15,9 @@ const { startEnergyOptimizationSimulationLoop } = require('./services/energyOpti
 const { startQualityPredictionSimulationLoop } = require('./services/qualityPredictionSimulation');
 const { startWorkerSafetySimulationLoop } = require('./services/workerSafetySimulation');
 const { startEmissionsSimulationLoop } = require('./services/emissionsSimulation');
+const { startRetentionLoop } = require('./services/retention');
+const { ensureBagFilterRepairHistory } = require('./services/bagfilterMaintenance');
+const { ensurePredictiveMaintenanceRepairHistory } = require('./services/predictiveMaintenanceHistory');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -32,7 +35,11 @@ const { requireAuth } = require('./middleware/auth');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || 'http://localhost:3000' }));
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
 app.use('/api/health', healthRoutes);
@@ -64,6 +71,8 @@ app.use((req, res) => {
 async function start() {
   await ensureSchema();
   await hydrateFromDb();
+  await ensureBagFilterRepairHistory();
+  await ensurePredictiveMaintenanceRepairHistory();
   startSimulationLoop();
   startPlantSimulationLoop();
   startControlCentreSimulationLoop();
@@ -73,6 +82,7 @@ async function start() {
   startQualityPredictionSimulationLoop();
   startWorkerSafetySimulationLoop();
   startEmissionsSimulationLoop();
+  startRetentionLoop();
 
   app.listen(PORT, () => {
     console.log(`CemPulse API listening on http://localhost:${PORT}`);

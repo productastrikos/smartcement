@@ -45,6 +45,7 @@ async function ensureSchema(pool = defaultPool) {
       value DOUBLE PRECISION NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_plant_metrics_key_ts ON plant_metrics (metric_key, ts);
+    CREATE INDEX IF NOT EXISTS idx_plant_metrics_ts ON plant_metrics (ts);
 
     CREATE TABLE IF NOT EXISTS downtime_events (
       id SERIAL PRIMARY KEY,
