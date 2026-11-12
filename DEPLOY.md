@@ -48,7 +48,6 @@ starting (e.g. in `server/.env`, copy from `server/.env.example`):
 
 ```
 PORT=4355
-JWT_SECRET=<a real secret — do not reuse the example value>
 JWT_EXPIRES_IN=8h
 CORS_ORIGIN=https://cempulse.astrikos.xyz:8443,http://localhost:3000
 ```
