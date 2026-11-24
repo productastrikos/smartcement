@@ -5,7 +5,7 @@ import {
 } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
 import { getStockKpis, getStockMaterials, getStockAlerts, getStockTrend } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
+import { formatINRCompact, usdToInr } from '../services/currency';
 import KPICard, { IcoScale, IcoClock, IcoDollar, IcoSignal, IcoCalendar, IcoCheck } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -209,7 +209,6 @@ function PointCloudViewer({ material }) {
 }
 
 export default function StockManagement() {
-  const mod = getModuleBySlug('3d-stock-management');
   const [kpis, setKpis] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -284,16 +283,16 @@ export default function StockManagement() {
     },
     bookVsPhysicalVariance: {
       label: 'Book vs. Physical Variance',
-      value: kpis ? `$${kpis.bookVsPhysicalVarianceUsd.toLocaleString()}` : '—',
-      description: 'Total dollar variance between ERP book inventory and physically measured stockpile quantities.',
+      value: kpis ? formatINRCompact(kpis.bookVsPhysicalVarianceUsd) : '—',
+      description: 'Total rupee variance between ERP book inventory and physically measured stockpile quantities.',
       insights: highestVarianceMaterial ? [
-        `${highestVarianceMaterial.material} shows the largest variance at ${highestVarianceMaterial.varianceTons > 0 ? '+' : ''}${highestVarianceMaterial.varianceTons.toLocaleString()}t ($${highestVarianceMaterial.varianceUsd.toLocaleString()}).`,
-        `Total variance across all materials is ${kpis ? `$${kpis.bookVsPhysicalVarianceUsd.toLocaleString()}` : '—'}.`,
+        `${highestVarianceMaterial.material} shows the largest variance at ${highestVarianceMaterial.varianceTons > 0 ? '+' : ''}${highestVarianceMaterial.varianceTons.toLocaleString()}t (${formatINRCompact(highestVarianceMaterial.varianceUsd)}).`,
+        `Total variance across all materials is ${kpis ? formatINRCompact(kpis.bookVsPhysicalVarianceUsd) : '—'}.`,
       ] : [],
       chart: materials.length ? {
-        type: 'bar', title: 'Variance by Material ($)', xLabel: 'Material', yLabel: 'Variance (USD)',
+        type: 'bar', title: 'Variance by Material (₹)', xLabel: 'Material', yLabel: 'Variance (₹)',
         labels: materials.map((m) => m.material),
-        data: materials.map((m) => m.varianceUsd),
+        data: materials.map((m) => Math.round(usdToInr(m.varianceUsd))),
         color: '#f59e0b',
       } : null,
     },
@@ -346,7 +345,7 @@ export default function StockManagement() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         <KPICard size="compact" label="Measurement Accuracy" value={kpis ? `${kpis.measurementAccuracyPct}%` : '—'} icon={<IcoCheck />} rag="normal" description="Combined drone + ground LiDAR accuracy vs. manual survey." onClick={() => setSelectedKpi('measurementAccuracy')} />
         <KPICard size="compact" label="Survey Cycle Time" value={kpis ? kpis.surveyCycleTimeMin : '—'} unit="min" icon={<IcoClock />} rag="normal" description="Time for a full stockyard survey, drone flight to report." onClick={() => setSelectedKpi('surveyCycleTime')} />
-        <KPICard size="compact" label="Book vs. Physical Variance" value={kpis ? `$${kpis.bookVsPhysicalVarianceUsd.toLocaleString()}` : '—'} icon={<IcoDollar />} rag={kpis && Math.abs(kpis.bookVsPhysicalVarianceUsd) > 5000 ? 'warning' : 'normal'} description="Total dollar variance between book and physical inventory." onClick={() => setSelectedKpi('bookVsPhysicalVariance')} />
+        <KPICard size="compact" label="Book vs. Physical Variance" value={kpis ? formatINRCompact(kpis.bookVsPhysicalVarianceUsd) : '—'} icon={<IcoDollar />} rag={kpis && Math.abs(kpis.bookVsPhysicalVarianceUsd) > 5000 ? 'warning' : 'normal'} description="Total rupee variance between book and physical inventory." onClick={() => setSelectedKpi('bookVsPhysicalVariance')} />
         <KPICard size="compact" label="Flights/Scans per Month" value={kpis ? kpis.flightsPerMonth : '—'} icon={<IcoSignal />} rag="normal" description="Drone flights or fixed-scanner passes completed monthly." onClick={() => setSelectedKpi('flightsPerMonth')} />
         <KPICard size="compact" label="Days of Stock Cover" value={kpis ? kpis.daysOfStockCover : '—'} unit="days" icon={<IcoCalendar />} rag="normal" description="Physical stock on hand vs. recent average daily consumption." onClick={() => setSelectedKpi('daysOfStockCover')} />
         <KPICard size="compact" label="Density Calibration Accuracy" value={kpis ? `${kpis.densityCalibrationAccuracyPct}%` : '—'} icon={<IcoScale />} rag="normal" description="Accuracy of per-material density assumptions used for tonnage." onClick={() => setSelectedKpi('densityCalibrationAccuracy')} />
@@ -426,12 +425,6 @@ export default function StockManagement() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

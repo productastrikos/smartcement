@@ -1,5 +1,4 @@
 const { SIMULATED_MODULES, moduleState, deriveModuleStatus } = require('../data/plantModules');
-const { addAlert } = require('../data/alertsStore');
 const { insertPlantMetric, insertDowntimeEvent } = require('../db/pg-index');
 
 const METRIC_TARGETS = {
@@ -31,23 +30,13 @@ async function tickModuleHealth() {
     const prevStatus = s.status;
     s.status = deriveModuleStatus(s.healthScore);
 
-    if (s.status !== prevStatus && (s.status === 'warning' || s.status === 'critical')) {
-      await addAlert({
-        type: s.status,
-        category: mod.id,
-        title: s.status === 'critical'
-          ? `${mod.label} — module health critical, immediate review required`
-          : `${mod.label} — module health degrading`,
-        message: s.status === 'critical'
-          ? `Simulated health score dropped to ${s.healthScore.toFixed(0)}/100. Investigate underlying process for ${mod.label}.`
-          : `Simulated health score at ${s.healthScore.toFixed(0)}/100, trending toward the warning threshold.`,
-        zone: 'Plant-wide',
-        assetId: mod.id,
-      });
-
-      if (s.status === 'critical') {
-        await insertDowntimeEvent(mod.id, Math.round(15 + Math.random() * 75), now);
-      }
+    // Note: this composite health score drives the dashboard heatmap tile
+    // only. Each module below already raises its own specific, detailed
+    // alerts (e.g. "Baghouse 4 — DP rising") from its own simulation, so this
+    // loop does not also raise a generic "module health degrading" alert —
+    // that would just duplicate the specific one with less useful detail.
+    if (s.status !== prevStatus && s.status === 'critical') {
+      await insertDowntimeEvent(mod.id, Math.round(15 + Math.random() * 75), now);
     }
 
     // gradual recovery so modules don't stay critical forever

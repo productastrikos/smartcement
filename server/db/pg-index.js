@@ -108,6 +108,20 @@ async function hasActiveAlertForAsset(assetId, category) {
   return alerts.some((a) => a.assetId === assetId && a.category === category && !a.acknowledged);
 }
 
+// Keeps each module's active-alert count demo-realistic (2-10) by
+// auto-resolving the oldest unresolved alerts in a category once the count
+// exceeds `max`, instead of letting unresolved alerts accumulate forever.
+async function capActiveAlertsForCategory(category, max, resolvedAt) {
+  const unresolved = alerts
+    .filter((a) => a.category === category && !a.acknowledged)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+  const overflow = unresolved.length - max;
+  for (let i = 0; i < overflow; i++) {
+    unresolved[i].acknowledged = true;
+    unresolved[i].resolvedAt = resolvedAt;
+  }
+}
+
 async function resolveAlertsForAsset(assetId, category, resolvedAt) {
   for (const a of alerts) {
     if (a.assetId === assetId && a.category === category && !a.acknowledged) {
@@ -311,6 +325,7 @@ module.exports = {
   getResolvedAlerts,
   hasActiveAlertForAsset,
   resolveAlertsForAsset,
+  capActiveAlertsForCategory,
   getReadingsSince,
   getReadingsForAllSince,
   insertPlantMetric,

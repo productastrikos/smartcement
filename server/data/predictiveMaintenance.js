@@ -13,8 +13,8 @@ const now = new Date().toISOString();
 
 function seedAssetState() {
   return {
-    vibrationMmS: 2 + Math.random() * 1.5,
-    temperatureC: 55 + Math.random() * 10,
+    vibrationMmS: 2 + Math.random() * 2,
+    temperatureC: 55 + Math.random() * 15,
     healthScore: 82 + Math.random() * 14,
     lastMaintenanceAt: new Date(Date.now() - (10 + Math.random() * 60) * 86400000).toISOString(),
   };
@@ -27,9 +27,12 @@ const state = {
   },
 };
 
-function deriveBaselineStatus(healthScore) {
-  if (healthScore < 40) return 'critical';
-  if (healthScore < 60) return 'warning';
+// Vibration/temperature thresholds take priority over the composite health
+// score so a reading above the documented anomaly threshold (6 mm/s or 80°C)
+// always shows at least Warning, even if the health score hasn't caught up.
+function deriveBaselineStatus(healthScore, vibrationMmS = 0, temperatureC = 0) {
+  if (healthScore < 40 || vibrationMmS > 8 || temperatureC > 90) return 'critical';
+  if (healthScore < 60 || vibrationMmS > 6 || temperatureC > 80) return 'warning';
   if (healthScore < 80) return 'watch';
   return 'normal';
 }

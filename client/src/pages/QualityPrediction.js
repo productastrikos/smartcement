@@ -5,7 +5,6 @@ import {
 } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
 import { getQualityKpis, getQualityBatches, getQualityAlerts } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
 import KPICard, { IcoAlert, IcoCheck, IcoClock, IcoTrendDown, IcoScale, IcoBox } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -15,7 +14,6 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 const POLL_INTERVAL_MS = 10000;
 
 export default function QualityPrediction() {
-  const mod = getModuleBySlug('quality-prediction-lab-automation');
   const [kpis, setKpis] = useState(null);
   const [batches, setBatches] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -217,12 +215,6 @@ export default function QualityPrediction() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

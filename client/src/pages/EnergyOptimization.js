@@ -7,7 +7,7 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getEnergyKpis, getKilnProfile, getFuelMix, getEnergyAlerts, getSavingsTrend, getOptimizationEvents,
 } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
+import { formatINRCompact, usdToInr } from '../services/currency';
 import KPICard, { IcoBolt, IcoFire, IcoLeaf, IcoTrendUp, IcoDollar, IcoSignal } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -26,7 +26,6 @@ function tempColor(temp) {
 }
 
 export default function EnergyOptimization() {
-  const mod = getModuleBySlug('kiln-energy-optimization');
   const [kpis, setKpis] = useState(null);
   const [profile, setProfile] = useState([]);
   const [fuelMix, setFuelMix] = useState(null);
@@ -86,7 +85,7 @@ export default function EnergyOptimization() {
     if (!trend) return null;
     return {
       labels: trend.map((d) => d.date.slice(5)),
-      datasets: [{ label: 'Cumulative Savings (USD)', data: trend.map((d) => d.cumulativeSavingsUsd), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.8 }],
+      datasets: [{ label: 'Cumulative Savings (₹)', data: trend.map((d) => Math.round(usdToInr(d.cumulativeSavingsUsd))), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.8 }],
     };
   }, [trend]);
 
@@ -136,9 +135,9 @@ export default function EnergyOptimization() {
       description: 'Cumulative energy savings achieved versus the pre-optimization baseline.',
       insights: [`Energy savings vs. baseline currently stand at ${kpis ? kpis.energySavingsPct : '—'}%.`],
       chart: trend?.length ? {
-        type: 'line', title: 'Cumulative Savings Trend (30d)', xLabel: 'Date', yLabel: 'Cumulative Savings (USD)',
+        type: 'line', title: 'Cumulative Savings Trend (30d)', xLabel: 'Date', yLabel: 'Cumulative Savings (₹)',
         labels: trend.map((d) => d.date.slice(5)),
-        data: trend.map((d) => d.cumulativeSavingsUsd),
+        data: trend.map((d) => Math.round(usdToInr(d.cumulativeSavingsUsd))),
         color: '#10b981',
       } : null,
     },
@@ -219,7 +218,7 @@ export default function EnergyOptimization() {
               plugins: { legend: { display: false }, tooltip: chartTooltip() },
               scales: chartScales({
                 x: { title: { display: true, text: 'Date', color: '#94a3b8', font: { size: 9 } } },
-                y: { title: { display: true, text: 'Cumulative Savings (USD)', color: '#94a3b8', font: { size: 9 } } },
+                y: { title: { display: true, text: 'Cumulative Savings (₹)', color: '#94a3b8', font: { size: 9 } } },
               }),
             }} />
           )}
@@ -246,7 +245,7 @@ export default function EnergyOptimization() {
                 <td className="px-3 py-2 text-slate-500 font-mono text-[10px]">{new Date(e.ts).toLocaleString()}</td>
                 <td className="px-3 py-2 text-slate-200 font-medium">{e.parameter}</td>
                 <td className="px-3 py-2 text-slate-300">{e.beforeValue} → {e.afterValue}</td>
-                <td className="px-3 py-2 text-right text-emerald-400 font-semibold">${e.savingsImpactUsd.toLocaleString()}</td>
+                <td className="px-3 py-2 text-right text-emerald-400 font-semibold">{formatINRCompact(e.savingsImpactUsd)}</td>
               </tr>
             ))}
             {events.length === 0 && (
@@ -255,12 +254,6 @@ export default function EnergyOptimization() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

@@ -7,7 +7,7 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getPredictiveMaintenanceKpis, getPredictiveMaintenanceAssets, getPredictiveMaintenanceAlerts, getAssetTrend,
 } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
+import { formatINR, formatINRCompact } from '../services/currency';
 import KPICard, { IcoDollar, IcoHourglass, IcoClipboard, IcoWrench, IcoCheck, IcoClock } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -40,7 +40,6 @@ function AssetScorecard({ asset, selected, onClick }) {
 }
 
 export default function PredictiveMaintenance() {
-  const mod = getModuleBySlug('predictive-maintenance');
   const [kpis, setKpis] = useState(null);
   const [assets, setAssets] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -118,7 +117,7 @@ export default function PredictiveMaintenance() {
   const kpiDetail = useMemo(() => ({
     downtimeAvoided: {
       label: 'Downtime Avoided',
-      value: kpis ? `$${(kpis.downtimeAvoidedUsd / 1000).toFixed(0)}K` : '—',
+      value: kpis ? formatINR(kpis.downtimeAvoidedUsd) : '—',
       description: 'Estimated value of unplanned downtime avoided through early failure prediction and scheduled interventions.',
       insights: [
         `${kpis ? kpis.downtimeAvoidedDays : '—'} days of downtime avoided to date.`,
@@ -155,9 +154,9 @@ export default function PredictiveMaintenance() {
     },
     maintenanceCostPerAsset: {
       label: 'Maintenance Cost/Asset',
-      value: kpis ? `$${kpis.maintenanceCostPerAssetUsd.toLocaleString()}` : '—',
+      value: kpis ? formatINRCompact(kpis.maintenanceCostPerAssetUsd) : '—',
       description: 'Average maintenance spend per asset, trending with fleet health and failure prediction accuracy.',
-      insights: [`Average spend per asset is $${kpis ? kpis.maintenanceCostPerAssetUsd.toLocaleString() : '—'} this period.`],
+      insights: [`Average spend per asset is ${kpis ? formatINRCompact(kpis.maintenanceCostPerAssetUsd) : '—'} this period.`],
     },
     predictionAccuracy: {
       label: 'Prediction Accuracy',
@@ -186,10 +185,10 @@ export default function PredictiveMaintenance() {
 
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-        <KPICard size="compact" label="Downtime Avoided" value={kpis ? `$${(kpis.downtimeAvoidedUsd / 1000).toFixed(0)}K` : '—'} icon={<IcoDollar />} rag="normal" subValues={kpis ? [{ label: 'DAYS', value: kpis.downtimeAvoidedDays }] : undefined} description="Value of unplanned downtime avoided via early prediction." onClick={() => setSelectedKpi('downtimeAvoided')} />
+        <KPICard size="compact" label="Downtime Avoided" value={kpis ? formatINR(kpis.downtimeAvoidedUsd) : '—'} icon={<IcoDollar />} rag="normal" subValues={kpis ? [{ label: 'DAYS', value: kpis.downtimeAvoidedDays }] : undefined} description="Value of unplanned downtime avoided via early prediction." onClick={() => setSelectedKpi('downtimeAvoided')} />
         <KPICard size="compact" label="Asset Health Score" value={kpis ? `${kpis.assetHealthScoreAvg}/100` : '—'} icon={<IcoCheck />} rag="normal" description="Fleet-average health score across all monitored assets." onClick={() => setSelectedKpi('assetHealthScore')} />
         <KPICard size="compact" label="Remaining Useful Life" value={kpis ? kpis.remainingUsefulLifeDays : '—'} unit="days" icon={<IcoHourglass />} rag={kpis && kpis.remainingUsefulLifeDays < 60 ? 'warning' : 'normal'} description="Shortest predicted RUL across the fleet — most urgent asset." onClick={() => setSelectedKpi('remainingUsefulLife')} />
-        <KPICard size="compact" label="Maintenance Cost/Asset" value={kpis ? `$${kpis.maintenanceCostPerAssetUsd.toLocaleString()}` : '—'} icon={<IcoWrench />} rag="normal" description="Average maintenance spend per asset, trending with fleet health." onClick={() => setSelectedKpi('maintenanceCostPerAsset')} />
+        <KPICard size="compact" label="Maintenance Cost/Asset" value={kpis ? formatINRCompact(kpis.maintenanceCostPerAssetUsd) : '—'} icon={<IcoWrench />} rag="normal" description="Average maintenance spend per asset, trending with fleet health." onClick={() => setSelectedKpi('maintenanceCostPerAsset')} />
         <KPICard size="compact" label="Prediction Accuracy" value={kpis ? `${kpis.predictionAccuracyPct}%` : '—'} icon={<IcoClipboard />} rag="normal" description="Model accuracy for predicted vs. actual asset issues." onClick={() => setSelectedKpi('predictionAccuracy')} />
         <KPICard size="compact" label="Work Order Lead Time" value={kpis?.workOrderLeadTimeHours != null ? kpis.workOrderLeadTimeHours : '—'} unit="hrs" icon={<IcoClock />} rag="normal" description="Average time from prediction to work order resolution." onClick={() => setSelectedKpi('workOrderLeadTime')} />
       </div>
@@ -278,12 +277,6 @@ export default function PredictiveMaintenance() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

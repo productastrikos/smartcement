@@ -16,7 +16,7 @@ async function ensureBagFilterRepairHistory() {
   for (let i = 1; i <= 8; i++) {
     const assetId = `BH-${i}`;
     const daysAgo = 2 + Math.random() * 16; // 2 to 18 days ago
-    const repairHours = 2.5 + Math.random() * 4; // 2.5 to 6.5 hours
+    const repairHours = 0.33 + Math.random() * 0.84; // ~20 to 70 minutes, averaging ~45 min
     const createdAt = new Date(now - daysAgo * 86400000);
     const resolvedAt = new Date(createdAt.getTime() + repairHours * 3600000);
     records.push({

@@ -12,12 +12,27 @@ const COMPARTMENTS = [
   { id: 'BH-8', label: 'Baghouse 8', zone: 'Cement Mill' },
 ];
 
-function makeReading(now) {
+// Reading bands keyed by starting condition — used to seed a realistic
+// plant-wide distribution (most compartments normal, a couple in warning,
+// only one in critical) instead of every compartment being independently
+// randomized around the same midpoint.
+const READING_BANDS = {
+  normal: { dp: [10, 18], emission: [15, 25], acoustic: [8, 18] },
+  warning: { dp: [22, 27], emission: [24, 28], acoustic: [22, 30] },
+  critical: { dp: [29, 33], emission: [31, 36], acoustic: [36, 42] },
+};
+
+function randIn([min, max]) {
+  return min + Math.random() * (max - min);
+}
+
+function makeReading(now, band = 'normal') {
+  const b = READING_BANDS[band] || READING_BANDS.normal;
   return {
-    differentialPressure_mbar: 9 + Math.random() * 4,
+    differentialPressure_mbar: randIn(b.dp),
     airflow_m3h: 4800 + Math.random() * 600,
-    acousticIndex_pct: 6 + Math.random() * 6,
-    emission_mgNm3: 6 + Math.random() * 6,
+    acousticIndex_pct: randIn(b.acoustic),
+    emission_mgNm3: randIn(b.emission),
     status: 'normal',
     bagBlindingEtaHours: null,
     updatedAt: now,
@@ -32,11 +47,15 @@ function deriveStatus(reading) {
   return 'normal';
 }
 
+// Seed distribution: 5 normal, 2 warning, 1 critical across the 8 compartments.
+const SEED_BANDS = ['normal', 'normal', 'normal', 'normal', 'normal', 'warning', 'warning', 'critical'];
+
 const now = new Date().toISOString();
 const state = {
-  compartments: COMPARTMENTS.map((c) => ({ ...c, reading: makeReading(now) })),
+  compartments: COMPARTMENTS.map((c, i) => ({ ...c, reading: makeReading(now, SEED_BANDS[i]) })),
   history: Object.fromEntries(COMPARTMENTS.map((c) => [c.id, []])),
 };
+state.compartments.forEach((c) => { c.reading.status = deriveStatus(c.reading); });
 
 module.exports = {
   EMISSION_LIMIT_MGNM3,

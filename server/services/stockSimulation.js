@@ -1,4 +1,4 @@
-const { MATERIALS, state } = require('../data/stockManagement');
+const { MATERIALS, BASE_QTY_TONS, state } = require('../data/stockManagement');
 const { addAlert, hasActiveAlertForAsset } = require('../data/alertsStore');
 const { insertPlantMetric } = require('../db/pg-index');
 
@@ -17,14 +17,28 @@ async function tick() {
 
   for (const mat of MATERIALS) {
     const s = state.materials[mat.id];
+    const base = BASE_QTY_TONS[mat.id];
 
-    const intake = Math.random() < 0.4 ? Math.random() * 40 : 0;
-    const consumption = Math.random() * 55;
+    // Intake/consumption scale with each material's own stockpile size (as a
+    // % of its base quantity) so a small pile (e.g. Fly Ash at 1,400t) drains
+    // at a proportional rate instead of the same flat tonnage as the largest
+    // pile (e.g. Limestone at 18,000t), which would otherwise hit zero within
+    // minutes of simulated time.
+    const intake = Math.random() < 0.4 ? base * (0.01 + Math.random() * 0.02) : 0;
+    const consumption = base * (0.008 + Math.random() * 0.018);
     s.physicalQtyTons = Math.max(0, s.physicalQtyTons + intake - consumption);
     // book quantity updates on a lag/independent cadence, creating drift/variance
     s.bookQtyTons = Math.max(0, s.bookQtyTons + intake - consumption * (0.9 + Math.random() * 0.2));
     totalIntake += intake;
     totalConsumption += consumption;
+
+    // Gentle pull back toward the material's normal stockpile size so a long
+    // run of consumption-heavy ticks can't drain a pile toward zero — mirrors
+    // a real plant's reorder point triggering a resupply.
+    if (s.physicalQtyTons < base * 0.4) {
+      s.physicalQtyTons += base * (0.03 + Math.random() * 0.04);
+      s.bookQtyTons += base * (0.03 + Math.random() * 0.04);
+    }
 
     // occasional drone/LiDAR rescan reconciles book vs physical and resets staleness
     if (Math.random() < 0.02) {

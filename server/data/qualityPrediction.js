@@ -11,7 +11,10 @@ const state = {
     reworkRejectionRatePct: 2 + Math.random() * 1.5,
     rawMaterialConsistencyIndex: 88 + Math.random() * 8,
   },
-  batchCounter: 0,
+  // Starts at 20000 so demo batch IDs read "B-20001", "B-20002", … — shared by
+  // both the live simulation and the 30-day history seed so IDs stay unique
+  // and strictly increasing across a server's lifetime.
+  batchCounter: 20000,
 };
 
 module.exports = { TARGETS, state };

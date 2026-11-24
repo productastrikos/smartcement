@@ -5,7 +5,6 @@ import {
 } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
 import { getBagFilterStatus, getBagFilterKpis } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
 import KPICard, { IcoShield, IcoWind, IcoThermometer, IcoHourglass, IcoClock, IcoBarChart } from '../components/KPICard';
 import ZoneFilterBar from '../components/ZoneFilterBar';
 import AlertPanel from '../components/AlertPanel';
@@ -59,7 +58,6 @@ function CompartmentTile({ compartment, onClick }) {
 }
 
 export default function BagFilterMonitoring() {
-  const mod = getModuleBySlug('bag-filter-dust-monitoring');
   const { alerts, acknowledgeAlert } = useData();
   const [status, setStatus] = useState(null);
   const [kpis, setKpis] = useState(null);
@@ -260,12 +258,6 @@ export default function BagFilterMonitoring() {
           )}
         </div>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {/* KPI detail slide-in panel */}
       {selectedKpi && (

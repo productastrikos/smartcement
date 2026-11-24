@@ -1,11 +1,20 @@
 const { state, PM_LIMIT_MGNM3, NOX_LIMIT_MGNM3, SO2_LIMIT_MGNM3 } = require('../data/emissionsTracking');
 const { state: bagfilterState } = require('../data/bagfilter');
 const { addAlert, hasActiveAlertForAsset } = require('../data/alertsStore');
-const { insertPlantMetric } = require('../db/pg-index');
+const { insertPlantMetric, resolveAlertsForAsset } = require('../db/pg-index');
 
 function randomWalk(value, step, min, max) {
   const next = value + (Math.random() - 0.5) * step;
   return Math.max(min, Math.min(max, next));
+}
+
+// Mean-reverting walk keeps NOx/SO2 hovering near a realistic compliant
+// level most of the time, with only occasional excursions toward the permit
+// limit, instead of a flat bounded random walk that would spend as much time
+// near 900 mg/Nm³ as near 400.
+function meanRevert(value, target, step, pull, min, max) {
+  const reverted = value + (target - value) * pull + (Math.random() - 0.5) * step;
+  return Math.max(min, Math.min(max, reverted));
 }
 
 function avgDustMgNm3() {
@@ -39,14 +48,19 @@ async function checkThreshold(label, value, limit, assetId) {
         assetId,
       });
     }
+  } else {
+    // Back under the early-warning threshold — resolve any open alert so it
+    // doesn't keep showing a stale reading that no longer matches the live
+    // Compliance Readings table.
+    await resolveAlertsForAsset(assetId, 'emissions-carbon-tracking', new Date().toISOString());
   }
 }
 
 async function tick() {
   const now = new Date().toISOString();
 
-  state.noxMgNm3 = randomWalk(state.noxMgNm3, 25, 400, 900);
-  state.so2MgNm3 = randomWalk(state.so2MgNm3, 12, 60, 220);
+  state.noxMgNm3 = meanRevert(state.noxMgNm3, 600, 20, 0.08, 400, 900);
+  state.so2MgNm3 = meanRevert(state.so2MgNm3, 120, 10, 0.08, 60, 220);
   const dustMgNm3 = avgDustMgNm3();
 
   await insertPlantMetric('emissions_dust_mgnm3', now, Number(dustMgNm3.toFixed(2)));

@@ -10,7 +10,7 @@ const state = {
   metrics: {
     specificPowerKwhPerTon: 68 + Math.random() * 8,
     specificThermalKcalPerKg: 730 + Math.random() * 40,
-    altFuelSubstitutionPct: 18 + Math.random() * 8,
+    altFuelSubstitutionPct: 23 + Math.random() * 4,
     throughputTonsPerHr: 195 + Math.random() * 20,
     energySavingsPct: 9 + Math.random() * 4,
     thermalStabilityScore: 88 + Math.random() * 8,

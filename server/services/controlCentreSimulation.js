@@ -1,5 +1,5 @@
 const { PLANTS, DEVIATION_CATEGORIES, state } = require('../data/controlCentre');
-const { addAlert } = require('../data/alertsStore');
+const { addAlert, hasActiveAlertForAsset } = require('../data/alertsStore');
 
 function randomWalk(value, step, min, max) {
   const next = value + (Math.random() - 0.5) * step;
@@ -26,8 +26,9 @@ async function tick() {
     m.maintenanceCostUsdPerTon = randomWalk(m.maintenanceCostUsdPerTon, 0.2, 2, 6);
     m.timeToCorrectiveActionMin = randomWalk(m.timeToCorrectiveActionMin, 3, 10, 90);
 
-    // Occasionally raise a deviation for this plant
-    if (Math.random() < 0.025) {
+    // Occasionally raise a deviation for this plant (skip if one is already
+    // open for this plant so deviations don't pile up unresolved forever)
+    if (Math.random() < 0.025 && !(await hasActiveAlertForAsset(plant.id, 'smart-control-centre'))) {
       const category = DEVIATION_CATEGORIES[Math.floor(Math.random() * DEVIATION_CATEGORIES.length)];
       const severity = Math.random() < 0.25 ? 'critical' : 'warning';
       await addAlert({

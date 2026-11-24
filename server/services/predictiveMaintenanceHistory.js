@@ -27,7 +27,7 @@ async function ensurePredictiveMaintenanceRepairHistory() {
     const assetId = DEMO_ASSETS[i - 1];
     const issue = DEMO_ISSUES[i - 1];
     const hoursAgo = 36 + Math.random() * 144; // created 1.5 to ~7.5 days ago
-    const repairHours = 6 + Math.random() * 30; // 6 to 36 hours to resolve
+    const repairHours = 3 + Math.random() * 6; // 3 to 9 hours, averaging ~6 hours
     const createdAt = new Date(now - hoursAgo * 3600000);
     const resolvedAt = new Date(createdAt.getTime() + repairHours * 3600000);
     records.push({

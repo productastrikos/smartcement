@@ -10,13 +10,50 @@ function randomWalk(value, step, min, max) {
   return Math.max(min, Math.min(max, next));
 }
 
+// Realistic per-parameter ranges for the optimization event log. kiln_feed_rate
+// is derived from live throughput (raw-meal feed runs ~1.55-1.65x clinker
+// throughput once CO2 driven off during calcination is accounted for) rather
+// than an independent random range.
 const OPTIMIZATION_PARAMETERS = [
-  { key: 'kiln_feed_rate', label: 'Kiln feed rate', unit: 't/h' },
-  { key: 'primary_air_flow', label: 'Primary air flow', unit: '%' },
-  { key: 'id_fan_speed', label: 'ID fan speed', unit: 'rpm' },
-  { key: 'alt_fuel_ratio', label: 'Alternative fuel ratio', unit: '%' },
-  { key: 'burning_zone_setpoint', label: 'Burning zone temperature setpoint', unit: '°C' },
+  { key: 'kiln_feed_rate', label: 'Kiln feed rate', unit: 't/h', derived: 'feedRate' },
+  { key: 'id_fan_speed', label: 'ID fan speed', unit: 'rpm', min: 600, max: 1000 },
+  { key: 'alt_fuel_ratio', label: 'Alternative fuel ratio', unit: '%', min: 23, max: 27 },
+  { key: 'burning_zone_setpoint', label: 'Burning zone temperature setpoint', unit: '°C', min: 1400, max: 1500 },
 ];
+
+function generateOptimizationEvent(m) {
+  const param = OPTIMIZATION_PARAMETERS[Math.floor(Math.random() * OPTIMIZATION_PARAMETERS.length)];
+  let before;
+  let after;
+  let decimals;
+
+  if (param.derived === 'feedRate') {
+    const ratio = 1.55 + Math.random() * 0.1;
+    before = m.throughputTonsPerHr * ratio;
+    after = before + (Math.random() - 0.5) * 6;
+    decimals = 1;
+  } else {
+    const mid = (param.min + param.max) / 2;
+    const span = (param.max - param.min) / 2;
+    before = Math.max(param.min, Math.min(param.max, mid + (Math.random() - 0.5) * span * 1.6));
+    // Occasionally no change at all — a genuinely no-op optimization pass.
+    const noChange = Math.random() < 0.15;
+    after = noChange ? before : Math.max(param.min, Math.min(param.max, before + (Math.random() - 0.5) * span * 0.5));
+    decimals = param.key === 'id_fan_speed' ? 0 : param.key === 'burning_zone_setpoint' ? 0 : 1;
+  }
+
+  const beforeRounded = Number(before.toFixed(decimals));
+  const afterRounded = Number(after.toFixed(decimals));
+  const changed = beforeRounded !== afterRounded;
+  const savings = changed ? Math.round(200 + Math.random() * 1600) : 0;
+
+  return {
+    parameter: param.label,
+    beforeValue: `${beforeRounded} ${param.unit}`,
+    afterValue: `${afterRounded} ${param.unit}`,
+    savingsImpactUsd: savings,
+  };
+}
 
 async function tick() {
   const now = new Date().toISOString();
@@ -24,7 +61,7 @@ async function tick() {
 
   m.specificPowerKwhPerTon = randomWalk(m.specificPowerKwhPerTon, 1.2, 58, 82);
   m.specificThermalKcalPerKg = randomWalk(m.specificThermalKcalPerKg, 8, 690, 800);
-  m.altFuelSubstitutionPct = randomWalk(m.altFuelSubstitutionPct, 1, 10, 38);
+  m.altFuelSubstitutionPct = randomWalk(m.altFuelSubstitutionPct, 0.5, 23, 27);
   m.throughputTonsPerHr = randomWalk(m.throughputTonsPerHr, 4, 150, 225);
   m.energySavingsPct = randomWalk(m.energySavingsPct, 0.5, 6, 18);
   m.thermalStabilityScore = randomWalk(m.thermalStabilityScore, 1.5, 65, 99);
@@ -97,17 +134,8 @@ async function tick() {
 
   // occasional logged optimization event for the audit table
   if (Math.random() < 0.02) {
-    const param = OPTIMIZATION_PARAMETERS[Math.floor(Math.random() * OPTIMIZATION_PARAMETERS.length)];
-    const before = randomWalk(50, 20, 10, 90);
-    const after = randomWalk(before, 8, 10, 95);
-    const savings = Number((Math.random() * 1800).toFixed(0));
-    await insertOptimizationEvent({
-      ts: now,
-      parameter: param.label,
-      beforeValue: `${before.toFixed(1)} ${param.unit}`,
-      afterValue: `${after.toFixed(1)} ${param.unit}`,
-      savingsImpactUsd: savings,
-    });
+    const event = generateOptimizationEvent(m);
+    await insertOptimizationEvent({ ts: now, ...event });
   }
 }
 

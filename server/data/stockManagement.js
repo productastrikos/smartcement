@@ -32,4 +32,4 @@ const state = {
   },
 };
 
-module.exports = { MATERIALS, state };
+module.exports = { MATERIALS, BASE_QTY_TONS, state };

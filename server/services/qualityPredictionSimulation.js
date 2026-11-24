@@ -1,6 +1,6 @@
 const { TARGETS, state } = require('../data/qualityPrediction');
 const { addAlert } = require('../data/alertsStore');
-const { insertQualityBatch, getQualityBatchCount } = require('../db/pg-index');
+const { insertQualityBatch } = require('../db/pg-index');
 
 function randomWalk(value, step, min, max) {
   const next = value + (Math.random() - 0.5) * step;
@@ -23,7 +23,7 @@ async function tick() {
   // roughly one new batch every ~2 ticks
   if (Math.random() < 0.5) {
     state.batchCounter += 1;
-    const batchId = `B-${String((await getQualityBatchCount()) + 1).padStart(5, '0')}`;
+    const batchId = `B-${state.batchCounter}`;
 
     const driftEvent = Math.random() < 0.08;
     const driftBias = driftEvent ? (Math.random() < 0.5 ? 1 : -1) : 0;

@@ -16,6 +16,7 @@ const { startWorkerSafetySimulationLoop } = require('./services/workerSafetySimu
 const { startEmissionsSimulationLoop } = require('./services/emissionsSimulation');
 const { ensureBagFilterRepairHistory } = require('./services/bagfilterMaintenance');
 const { ensurePredictiveMaintenanceRepairHistory } = require('./services/predictiveMaintenanceHistory');
+const { ensureWorkerSafetyIncidentHistory } = require('./services/workerSafetyHistory');
 const healthRoutes = require('./routes/health');
 const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
@@ -70,6 +71,7 @@ async function start() {
   await seedDemoHistory();
   await ensureBagFilterRepairHistory();
   await ensurePredictiveMaintenanceRepairHistory();
+  await ensureWorkerSafetyIncidentHistory();
   startSimulationLoop();
   startPlantSimulationLoop();
   startControlCentreSimulationLoop();

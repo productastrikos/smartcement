@@ -8,7 +8,7 @@ const router = express.Router();
 function materialRows() {
   return MATERIALS.map((mat) => {
     const s = state.materials[mat.id];
-    const varianceTons = s.bookQtyTons - s.physicalQtyTons;
+    const varianceTons = s.physicalQtyTons - s.bookQtyTons;
     return {
       materialId: mat.id,
       material: mat.name,

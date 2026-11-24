@@ -8,7 +8,8 @@ import {
   getControlCentreKpis, getControlCentreDeviations, getControlCentrePlants, getControlCentreDeviationTrend,
   getBagFilterStatus,
 } from '../services/api';
-import { getModuleBySlug, PLANT_ZONES } from '../services/cementKnowledge';
+import { PLANT_ZONES } from '../services/cementKnowledge';
+import { formatINRCompact, usdToInr } from '../services/currency';
 import KPICard, { IcoSignal, IcoDollar, IcoClock, IcoGlobe, IcoHourglass, IcoShield } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -67,7 +68,6 @@ function ProcessFlowTwin({ zoneStatuses }) {
 }
 
 export default function SmartControlCentre() {
-  const mod = getModuleBySlug('smart-control-centre');
   const [kpis, setKpis] = useState(null);
   const [deviations, setDeviations] = useState([]);
   const [plants, setPlants] = useState([]);
@@ -151,8 +151,8 @@ export default function SmartControlCentre() {
     maintenanceCostReduction: {
       label: 'Maintenance Cost Reduction', value: kpis ? `${kpis.maintenanceCostReductionPct}%` : '—',
       description: 'Maintenance cost reduction vs. the pre-control-centre baseline, driven by standardized SOPs and cross-plant benchmarking.',
-      insights: plants.length ? [`Live maintenance cost ranges $${Math.min(...plants.map(p => p.maintenanceCostUsdPerTon))} – $${Math.max(...plants.map(p => p.maintenanceCostUsdPerTon))} per ton across the network.`] : [],
-      chart: plants.length ? { type: 'bar', labels: plants.map(p => p.plant), data: plants.map(p => p.maintenanceCostUsdPerTon), color: '#f59e0b', title: 'Maintenance Cost by Plant ($/ton)', xLabel: 'Plant', yLabel: 'USD per ton' } : null,
+      insights: plants.length ? [`Live maintenance cost ranges ${formatINRCompact(Math.min(...plants.map(p => p.maintenanceCostUsdPerTon)))} – ${formatINRCompact(Math.max(...plants.map(p => p.maintenanceCostUsdPerTon)))} per ton across the network.`] : [],
+      chart: plants.length ? { type: 'bar', labels: plants.map(p => p.plant), data: plants.map(p => Math.round(usdToInr(p.maintenanceCostUsdPerTon))), color: '#f59e0b', title: 'Maintenance Cost by Plant (₹/ton)', xLabel: 'Plant', yLabel: '₹ per ton' } : null,
     },
     mtbf: {
       label: 'MTBF', value: kpis ? kpis.mtbfHours : '—', unit: 'hrs',
@@ -272,19 +272,13 @@ export default function SmartControlCentre() {
                 <td className="px-3 py-2 text-right text-slate-300">{p.oeePct}%</td>
                 <td className="px-3 py-2 text-right text-slate-300">{p.availabilityPct}%</td>
                 <td className="px-3 py-2 text-right text-slate-300">{p.mtbfHours}h</td>
-                <td className="px-3 py-2 text-right text-slate-300">${p.maintenanceCostUsdPerTon}/ton</td>
+                <td className="px-3 py-2 text-right text-slate-300">{formatINRCompact(p.maintenanceCostUsdPerTon)}/ton</td>
                 <td className="px-3 py-2 text-center font-bold text-slate-200">#{p.rank}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

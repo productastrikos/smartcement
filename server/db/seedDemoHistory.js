@@ -3,6 +3,7 @@ const {
   insertDowntimeEvent,
   insertQualityBatch,
 } = require('./pg-index');
+const { state: qualityState } = require('../data/qualityPrediction');
 
 const DAYS = 30;
 
@@ -29,7 +30,7 @@ async function seedDemoHistory() {
     await insertPlantMetric('energyPerTon', ts, Number(jitter(100, 8).toFixed(2)));
     await insertPlantMetric('co2PerTon', ts, Number(jitter(820, 20).toFixed(2)));
     await insertPlantMetric('energy_savings_usd_increment', ts, Number(jitter(900, 400).toFixed(2)));
-    await insertPlantMetric('alt_fuel_substitution_pct', ts, Number(jitter(24, 10).toFixed(1)));
+    await insertPlantMetric('alt_fuel_substitution_pct', ts, Number(jitter(25, 4).toFixed(1)));
     await insertPlantMetric('stock_intake', ts, Number(jitter(220, 80).toFixed(2)));
     await insertPlantMetric('stock_consumption', ts, Number(jitter(260, 70).toFixed(2)));
 
@@ -44,8 +45,9 @@ async function seedDemoHistory() {
       const batchTs = isoAt(daysAgo, 8 + b * 6);
       const offSpec = Math.random() < 0.12;
       const driftBias = offSpec ? (Math.random() < 0.5 ? 1 : -1) : 0;
+      qualityState.batchCounter += 1;
       await insertQualityBatch({
-        batchId: `B-SEED-${daysAgo}-${b}`,
+        batchId: `B-${qualityState.batchCounter}`,
         ts: batchTs,
         predictedFreeLime: Number(jitter(1.5, 0.6).toFixed(2)),
         measuredFreeLime: Number((1.5 + driftBias * 0.9 + jitter(0, 0.3)).toFixed(2)),

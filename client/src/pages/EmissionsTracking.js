@@ -7,7 +7,6 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getEmissionsKpis, getEmissionsTrend, getAltFuelTrend, getEmissionsReadingsTable, getEmissionsAlerts,
 } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
 import KPICard, { IcoLeaf, IcoWind, IcoFuel, IcoCheck, IcoClipboard, IcoFire } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
@@ -23,7 +22,6 @@ const STATUS_STYLE = {
 };
 
 export default function EmissionsTracking() {
-  const mod = getModuleBySlug('emissions-carbon-tracking');
   const [kpis, setKpis] = useState(null);
   const [trend, setTrend] = useState(null);
   const [altFuelTrend, setAltFuelTrend] = useState(null);
@@ -228,12 +226,6 @@ export default function EmissionsTracking() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div

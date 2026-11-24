@@ -15,7 +15,7 @@ function assetRows() {
       healthScore: Math.round(s.healthScore),
       rulDays: rulDaysFromHealth(s.healthScore),
       lastMaintenanceAt: s.lastMaintenanceAt,
-      baselineStatus: deriveBaselineStatus(s.healthScore),
+      baselineStatus: deriveBaselineStatus(s.healthScore, s.vibrationMmS, s.temperatureC),
       vibrationMmS: Number(s.vibrationMmS.toFixed(2)),
       temperatureC: Number(s.temperatureC.toFixed(1)),
     };

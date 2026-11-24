@@ -3,7 +3,6 @@ import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
 import { acknowledgeAlert, getSafetyKpis, getSafetyZones, getSafetyAlerts, getSafetyIncidentTrend } from '../services/api';
-import { getModuleBySlug } from '../services/cementKnowledge';
 import KPICard, { IcoShield, IcoAlert, IcoClock, IcoSignal, IcoAttendance, IcoGlobe } from '../components/KPICard';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
 
@@ -102,7 +101,6 @@ function ZoneCard({ zone }) {
 }
 
 export default function WorkerSafety() {
-  const mod = getModuleBySlug('worker-safety-computer-vision');
   const [kpis, setKpis] = useState(null);
   const [zones, setZones] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -352,12 +350,6 @@ export default function WorkerSafety() {
           </tbody>
         </table>
       </div>
-
-      {mod && (
-        <div className="bg-app-panel border border-app-border rounded-xl px-4 py-3 text-[11px] text-slate-400">
-          {mod.bottomLine}
-        </div>
-      )}
 
       {selectedKpi && (
         <div
