@@ -7,9 +7,15 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getEmissionsKpis, getEmissionsTrend, getAltFuelTrend, getEmissionsReadingsTable, getEmissionsAlerts,
 } from '../services/api';
+import { Cloud } from 'lucide-react';
 import KPICard, { IcoLeaf, IcoWind, IcoFuel, IcoCheck, IcoClipboard, IcoFire } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { emissionsAdvisories } from '../services/advisoryGenerators';
+
+const MODULE_ID = 'emissions-carbon-tracking';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -134,14 +140,19 @@ export default function EmissionsTracking() {
     },
   }), [kpis, trend, emissionsChart, altFuelChart, readings]);
 
+  const advisories = useMemo(() => emissionsAdvisories(readings), [readings]);
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Emissions and Carbon Tracking</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Live CEMS stack data — dust readings shared with the Bag Filter module, alt. fuel share shared with Energy Optimization
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <Cloud size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Emissions and Carbon Tracking</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Live CEMS stack data — dust readings shared with the Bag Filter module, alt. fuel share shared with Energy Optimization
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -158,6 +169,12 @@ export default function EmissionsTracking() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={alerts} onClose={() => {}} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {/* Graphs */}
       <div className="bg-app-panel border border-app-border rounded-xl p-4">

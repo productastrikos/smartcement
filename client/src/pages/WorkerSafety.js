@@ -2,9 +2,17 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
+import { ShieldCheck } from 'lucide-react';
 import { acknowledgeAlert, getSafetyKpis, getSafetyZones, getSafetyAlerts, getSafetyIncidentTrend } from '../services/api';
 import KPICard, { IcoShield, IcoAlert, IcoClock, IcoSignal, IcoAttendance, IcoGlobe } from '../components/KPICard';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import AlertStatusTracker from '../components/AlertStatusTracker';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { workerSafetyAdvisories } from '../services/advisoryGenerators';
+import { getAlertTimeline } from '../services/alertLifecycle';
+
+const MODULE_ID = 'worker-safety-computer-vision';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -139,7 +147,15 @@ export default function WorkerSafety() {
     try { await acknowledgeAlert(alertId); fetchAll(); } catch (e) { /* ignore */ }
   };
 
-  const unresolvedIncidents = useMemo(() => alerts.filter((a) => !a.acknowledged && !ackIds.has(a.alertId)), [alerts, ackIds]);
+  // "Active" count mirrors the sidebar badge (backend-unresolved). The
+  // visible feed keeps showing a card through Acknowledged/Under Review so
+  // its status tracker stays visible, until an operator marks it Resolved.
+  const openIncidentCount = alerts.filter((a) => !a.acknowledged && !ackIds.has(a.alertId)).length;
+  const displayedIncidents = useMemo(() => alerts
+    .map((a) => (ackIds.has(a.alertId) ? { ...a, acknowledged: true } : a))
+    .filter((a) => getAlertTimeline(a).currentStep !== 'resolved'), [alerts, ackIds]);
+
+  const advisories = useMemo(() => workerSafetyAdvisories(zones), [zones]);
 
   const trendChart = useMemo(() => {
     if (!trend) return null;
@@ -211,12 +227,15 @@ export default function WorkerSafety() {
 
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Worker Safety and Computer Vision</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Live AI camera monitoring across {zones.length || 6} zones
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <ShieldCheck size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Worker Safety and Computer Vision</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Live AI camera monitoring across {zones.length || 6} zones
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -241,25 +260,30 @@ export default function WorkerSafety() {
         )}
         <div className="px-4 py-3 border-b border-app-border flex items-center justify-between">
           <h3 className="text-sm font-bold text-white">Real-Time Incident Feed</h3>
-          <span className="text-[10px] text-slate-500">{unresolvedIncidents.length} active</span>
+          <span className="text-[10px] text-slate-500">{openIncidentCount} active</span>
         </div>
         <div className="p-2 space-y-1.5 max-h-64 overflow-y-auto">
-          {unresolvedIncidents.length === 0 && (
+          {displayedIncidents.length === 0 && (
             <div className="text-center py-8 text-[11px] text-slate-500">No active incidents</div>
           )}
-          {unresolvedIncidents.map((a) => {
+          {displayedIncidents.map((a) => {
             const meta = a.type === 'critical' ? STATUS_META.critical : STATUS_META.warning;
             return (
-              <div key={a.alertId} className="flex items-center gap-3 p-2.5 rounded-lg" style={{ background: `${meta.color}0f`, border: `1px solid ${meta.color}33` }}>
-                <CameraThumbnail online status={a.type} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: meta.color }}>{a.zone}</span>
-                    <span className="text-[9px] text-slate-500">{a.assetId}</span>
+              <div key={a.alertId} className="p-2.5 rounded-lg" style={{ background: `${meta.color}0f`, border: `1px solid ${meta.color}33` }}>
+                <div className="flex items-center gap-3">
+                  <CameraThumbnail online status={a.type} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: meta.color }}>{a.zone}</span>
+                      <span className="text-[9px] text-slate-500">{a.assetId}</span>
+                    </div>
+                    <p className="text-[12px] text-slate-200 font-medium leading-snug mt-0.5">{a.title}</p>
                   </div>
-                  <p className="text-[12px] text-slate-200 font-medium leading-snug mt-0.5">{a.title}</p>
+                  {!a.acknowledged && (
+                    <button onClick={() => handleAck(a.alertId)} className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 shrink-0">Acknowledge</button>
+                  )}
                 </div>
-                <button onClick={() => handleAck(a.alertId)} className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 shrink-0">Acknowledge</button>
+                <AlertStatusTracker alert={a} />
               </div>
             );
           })}
@@ -350,6 +374,12 @@ export default function WorkerSafety() {
           </tbody>
         </table>
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {selectedKpi && (
         <div

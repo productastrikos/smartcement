@@ -120,7 +120,7 @@ export const MODULES = [
     bottomLine: 'Dashboard fit is direct: asset health scores, remaining useful life estimates, and a live work order queue. Pairs naturally with the bag filter module since both share the same alerting and maintenance workflow screens.',
     headlineKpis: [
       { label: 'Downtime Reduction', value: '40-60%', tone: 'success' },
-      { label: 'Avoided Downtime Value', value: '~$300K/day', tone: 'neutral' },
+      { label: 'Avoided Downtime Value', value: '~₹2.5 Cr/day', tone: 'neutral' },
     ],
   },
   {

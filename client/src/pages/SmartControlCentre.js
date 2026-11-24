@@ -8,11 +8,17 @@ import {
   getControlCentreKpis, getControlCentreDeviations, getControlCentrePlants, getControlCentreDeviationTrend,
   getBagFilterStatus,
 } from '../services/api';
+import { Gauge } from 'lucide-react';
 import { PLANT_ZONES } from '../services/cementKnowledge';
 import { formatINRCompact, usdToInr } from '../services/currency';
 import KPICard, { IcoSignal, IcoDollar, IcoClock, IcoGlobe, IcoHourglass, IcoShield } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { controlCentreAdvisories } from '../services/advisoryGenerators';
+
+const MODULE_ID = 'smart-control-centre';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
@@ -180,14 +186,19 @@ export default function SmartControlCentre() {
     },
   }), [kpis, plants, deviations]);
 
+  const advisories = useMemo(() => controlCentreAdvisories(plants, deviations), [plants, deviations]);
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Smart Control Centre Management</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Unified oversight across {plants.length || 6} plants
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <Gauge size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Smart Control Centre Management</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Unified oversight across {plants.length || 6} plants
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -204,6 +215,12 @@ export default function SmartControlCentre() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={deviations} onClose={() => {}} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {/* Comparison + deviation trend */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

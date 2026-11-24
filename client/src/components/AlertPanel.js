@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { acknowledgeAlert } from '../services/api';
+import AlertStatusTracker from './AlertStatusTracker';
+import { getAlertTimeline } from '../services/alertLifecycle';
 
 const typeColors = {
   critical: { bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400', dot: 'bg-red-500' },
@@ -39,12 +41,20 @@ export default function AlertPanel({ alerts = [], onClose }) {
   };
 
   const uniqueAlerts = dedupeAlerts(alerts);
-  const activeAlerts = uniqueAlerts.filter((a) => !a.acknowledged && !acknowledgedIds.has(a.alertId));
+  // "Active" for the header count/sidebar badge means backend-unresolved
+  // (matches the module's sidebar badge). The visible list, however, keeps
+  // showing an alert through Acknowledged/Under Review so its status
+  // tracker stays visible — it only drops off once an operator manually
+  // marks it Resolved.
+  const openAlerts = uniqueAlerts.filter((a) => !a.acknowledged && !acknowledgedIds.has(a.alertId));
+  const displayedAlerts = uniqueAlerts
+    .map((a) => (acknowledgedIds.has(a.alertId) ? { ...a, acknowledged: true } : a))
+    .filter((a) => getAlertTimeline(a).currentStep !== 'resolved');
 
   const grouped = {
-    critical: activeAlerts.filter(a => a.type === 'critical'),
-    warning: activeAlerts.filter(a => a.type === 'warning'),
-    info: activeAlerts.filter(a => a.type === 'info'),
+    critical: displayedAlerts.filter(a => a.type === 'critical'),
+    warning: displayedAlerts.filter(a => a.type === 'warning'),
+    info: displayedAlerts.filter(a => a.type === 'info'),
   };
 
   const timeSince = (dateStr) => {
@@ -69,7 +79,7 @@ export default function AlertPanel({ alerts = [], onClose }) {
       <div className="px-4 py-3 border-b border-app-border flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-white">Real-Time Alerts</h3>
-          <p className="text-xs text-slate-400">{activeAlerts.length} active</p>
+          <p className="text-xs text-slate-400">{openAlerts.length} active</p>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-white">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,13 +104,16 @@ export default function AlertPanel({ alerts = [], onClose }) {
                       <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2">{alert.message}</p>
                       <div className="flex items-center justify-between mt-1.5">
                         <span className="text-[10px] text-slate-400">{timeSince(alert.createdAt)}</span>
-                        <button
-                          onClick={() => handleAcknowledge(alert.alertId)}
-                          className="text-[10px] text-cyan-400 hover:text-cyan-300 font-medium"
-                        >
-                          Acknowledge
-                        </button>
+                        {!alert.acknowledged && (
+                          <button
+                            onClick={() => handleAcknowledge(alert.alertId)}
+                            className="text-[10px] text-cyan-400 hover:text-cyan-300 font-medium"
+                          >
+                            Acknowledge
+                          </button>
+                        )}
                       </div>
+                      <AlertStatusTracker alert={alert} />
                     </div>
                   </div>
                 </div>
@@ -109,7 +122,7 @@ export default function AlertPanel({ alerts = [], onClose }) {
           )
         ))}
 
-        {activeAlerts.length === 0 && (
+        {displayedAlerts.length === 0 && (
           <div className="text-center text-slate-400 text-sm py-8">
             No active alerts
           </div>

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
+import { Wind } from 'lucide-react';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
 } from 'chart.js';
@@ -10,7 +11,12 @@ import ZoneFilterBar from '../components/ZoneFilterBar';
 import AlertPanel from '../components/AlertPanel';
 import KPIDetailPanel from '../components/KPIDetailPanel';
 import CompartmentDetailPanel from '../components/CompartmentDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { bagFilterAdvisories } from '../services/advisoryGenerators';
 import { useData } from '../services/socket';
+
+const MODULE_ID = 'bag-filter-dust-monitoring';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -93,7 +99,7 @@ export default function BagFilterMonitoring() {
     return () => { clearInterval(t1); clearInterval(t2); };
   }, [fetchStatus, fetchKpis]);
 
-  const compartments = status?.compartments || [];
+  const compartments = useMemo(() => status?.compartments || [], [status]);
   const filtered = zone === 'all' ? compartments : compartments.filter((c) => c.zone === zone);
 
   const bagFilterAlerts = useMemo(
@@ -143,14 +149,22 @@ export default function BagFilterMonitoring() {
   const deviationCount = kpis?.pressureDeviation?.count ?? 0;
   const deviationTotal = kpis?.pressureDeviation?.totalCompartments ?? compartments.length;
 
+  const advisories = useMemo(
+    () => bagFilterAdvisories(compartments, status?.emissionLimitMgNm3 ?? 30),
+    [compartments, status]
+  );
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Bag Filter Dust Monitoring</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Live compartment-level pressure, airflow, acoustic, and emission telemetry across {compartments.length} baghouses
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <Wind size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Bag Filter Dust Monitoring</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Live compartment-level pressure, airflow, acoustic, and emission telemetry across {compartments.length} baghouses
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -216,6 +230,12 @@ export default function BagFilterMonitoring() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={bagFilterAlerts} onClose={() => {}} onAcknowledge={acknowledgeAlert} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       <ZoneFilterBar value={zone} onChange={setZone} />
 

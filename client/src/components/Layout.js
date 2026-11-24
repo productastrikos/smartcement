@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Wind, Activity, Flame, FlaskConical, ShieldCheck, Cloud, Package, Gauge } from 'lucide-react';
 import { useData } from '../services/socket';
 import { MODULES } from '../services/cementKnowledge';
 import NotificationsPanel from './NotificationsPanel';
@@ -7,6 +8,19 @@ import AdvisoryPanel from './AdvisoryPanel';
 import CriticalBanner from './CriticalBanner';
 
 const MODULE_ICON = 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H6.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 0011 10.172V5L8 4z';
+
+// Each module gets its own distinctive, meaning-matched line icon in the
+// sidebar instead of a single shared generic glyph.
+export const MODULE_LUCIDE_ICONS = {
+  'bag-filter-dust-monitoring': Wind,
+  'smart-control-centre': Gauge,
+  '3d-stock-management': Package,
+  'predictive-maintenance': Activity,
+  'kiln-energy-optimization': Flame,
+  'quality-prediction-lab-automation': FlaskConical,
+  'worker-safety-computer-vision': ShieldCheck,
+  'emissions-carbon-tracking': Cloud,
+};
 
 /* ─── Navigation structure ─────────────────────────────── */
 const NAV_SECTIONS = [
@@ -197,6 +211,7 @@ export default function Layout({ children, user, onLogout, theme = 'dark', onThe
               {section.items.map((item) => {
                 const isActive = location.pathname === item.path;
                 const badgeCount = item.moduleId ? (alertCountsByModule[item.moduleId] || 0) : 0;
+                const ModuleIcon = item.moduleId ? MODULE_LUCIDE_ICONS[item.moduleId] : null;
                 return (
                   <div key={item.path} className="px-2">
                     <button
@@ -205,7 +220,7 @@ export default function Layout({ children, user, onLogout, theme = 'dark', onThe
                       title={!sidebarOpen ? item.label : undefined}
                       style={{ position: 'relative' }}
                     >
-                      <SvgIcon d={item.icon} />
+                      {ModuleIcon ? <ModuleIcon size={16} strokeWidth={1.75} className="flex-shrink-0" /> : <SvgIcon d={item.icon} />}
                       {sidebarOpen && <span className="truncate">{item.label}</span>}
                       {badgeCount > 0 && (
                         <span

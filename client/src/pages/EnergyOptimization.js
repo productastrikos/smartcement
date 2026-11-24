@@ -7,10 +7,16 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getEnergyKpis, getKilnProfile, getFuelMix, getEnergyAlerts, getSavingsTrend, getOptimizationEvents,
 } from '../services/api';
+import { Flame } from 'lucide-react';
 import { formatINRCompact, usdToInr } from '../services/currency';
 import KPICard, { IcoBolt, IcoFire, IcoLeaf, IcoTrendUp, IcoDollar, IcoSignal } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { energyOptimizationAdvisories } from '../services/advisoryGenerators';
+
+const MODULE_ID = 'kiln-energy-optimization';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend, Filler);
 
@@ -149,14 +155,19 @@ export default function EnergyOptimization() {
     },
   }), [kpis, profile, fuelMix, trend]);
 
+  const advisories = useMemo(() => energyOptimizationAdvisories(profile, kpis), [profile, kpis]);
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Kiln and Energy Optimization</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Live kiln thermal profile, fuel mix, and energy KPIs
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <Flame size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Kiln and Energy Optimization</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Live kiln thermal profile, fuel mix, and energy KPIs
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -173,6 +184,12 @@ export default function EnergyOptimization() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={alerts} onClose={() => {}} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {/* Kiln thermal profile + fuel mix */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">

@@ -4,10 +4,16 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler,
 } from 'chart.js';
 import { chartTooltip, chartScales } from '../components/chartUtils';
+import { FlaskConical } from 'lucide-react';
 import { getQualityKpis, getQualityBatches, getQualityAlerts } from '../services/api';
 import KPICard, { IcoAlert, IcoCheck, IcoClock, IcoTrendDown, IcoScale, IcoBox } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { qualityAdvisories } from '../services/advisoryGenerators';
+
+const MODULE_ID = 'quality-prediction-lab-automation';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -123,14 +129,19 @@ export default function QualityPrediction() {
     },
   }), [kpis, overlayChart, driftTimelineChart, orderedBatches]);
 
+  const advisories = useMemo(() => qualityAdvisories(batches), [batches]);
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Quality Prediction and Lab Automation</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Soft-sensor quality prediction vs. lab-confirmed results, {kpis?.batchesTracedCount ?? 0} batches traced
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <FlaskConical size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Quality Prediction and Lab Automation</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Soft-sensor quality prediction vs. lab-confirmed results, {kpis?.batchesTracedCount ?? 0} batches traced
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -147,6 +158,12 @@ export default function QualityPrediction() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={alerts} onClose={() => {}} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {/* Graphs */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">

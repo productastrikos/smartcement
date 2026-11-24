@@ -7,10 +7,16 @@ import { chartTooltip, chartScales } from '../components/chartUtils';
 import {
   getPredictiveMaintenanceKpis, getPredictiveMaintenanceAssets, getPredictiveMaintenanceAlerts, getAssetTrend,
 } from '../services/api';
+import { Activity } from 'lucide-react';
 import { formatINR, formatINRCompact } from '../services/currency';
 import KPICard, { IcoDollar, IcoHourglass, IcoClipboard, IcoWrench, IcoCheck, IcoClock } from '../components/KPICard';
 import AlertPanel from '../components/AlertPanel';
 import GenericKPIDetailPanel from '../components/GenericKPIDetailPanel';
+import ModuleAdvisoryPanel from '../components/ModuleAdvisoryPanel';
+import InterventionLogPanel from '../components/InterventionLogPanel';
+import { predictiveMaintenanceAdvisories } from '../services/advisoryGenerators';
+
+const MODULE_ID = 'predictive-maintenance';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Tooltip, Legend, Filler);
 
@@ -173,14 +179,19 @@ export default function PredictiveMaintenance() {
     },
   }), [kpis, assets, worstAsset]);
 
+  const advisories = useMemo(() => predictiveMaintenanceAdvisories(assets), [assets]);
+
   return (
     <div className="h-full overflow-y-auto p-1 space-y-4">
-      <div>
-        <h1 className="text-xl font-bold text-white tracking-tight">Predictive Maintenance</h1>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          Live vibration, temperature, and health monitoring across {assets.length || 6} rotating assets
-          {error && <span className="text-red-400"> · connection error: {error}</span>}
-        </p>
+      <div className="flex items-center gap-2.5">
+        <Activity size={22} strokeWidth={1.75} className="text-sky-400 shrink-0" />
+        <div>
+          <h1 className="text-xl font-bold text-white tracking-tight">Predictive Maintenance</h1>
+          <p className="text-[11px] text-slate-400 mt-0.5">
+            Live vibration, temperature, and health monitoring across {assets.length || 6} rotating assets
+            {error && <span className="text-red-400"> · connection error: {error}</span>}
+          </p>
+        </div>
       </div>
 
       {/* KPI row */}
@@ -197,6 +208,12 @@ export default function PredictiveMaintenance() {
       <div className="bg-app-panel border border-app-border rounded-xl overflow-hidden" style={{ height: 320 }}>
         <AlertPanel alerts={alerts} onClose={() => {}} />
       </div>
+
+      {/* AI Advisory */}
+      <ModuleAdvisoryPanel moduleId={MODULE_ID} advisories={advisories} />
+
+      {/* Intervention Log */}
+      <InterventionLogPanel moduleId={MODULE_ID} />
 
       {/* Asset scorecards */}
       <div>
